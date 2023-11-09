@@ -129,8 +129,10 @@ def demo_visualize_closestMap(self):
     
 import sympy as s
 t_var = s.Symbol("t")
-x_func = s.cos(t_var)
-y_func = s.sin(t_var) + 1
+# x_func = s.cos(t_var)
+# y_func = s.sin(t_var) + 1
+x_func = 0.2 * t_var * s.cos(t_var)
+y_func = 0.2 * t_var * s.sin(t_var)
 x_lam = s.lambdify(t_var, x_func, "numpy")
 y_lam = s.lambdify(t_var, y_func, "numpy")
 xp_func = s.diff(x_func, t_var)
@@ -688,7 +690,7 @@ class ParticleFilter:
             else:
                 from scipy.optimize import minimize_scalar
                 d_curr_lam = s.lambdify(t_var, d_curr, "numpy")
-                result = minimize_scalar(d_curr_lam, bounds=(self.curr_t - 0.2, self.curr_t + 0.5), method='bounded')
+                result = minimize_scalar(d_curr_lam, bounds=(self.curr_t - 1, self.curr_t + 1), method='bounded')
                 t = result.x
             
                 clos_x = x_lam(t)
@@ -699,7 +701,8 @@ class ParticleFilter:
                 
                 self.curr_t = t
             
-            corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * 64
+            corr_weight = np.e ** (100 * np.hypot(clos_x - curr_x, clos_y - curr_y)) - 1
+            corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * 64 * corr_weight
             curve_vel = np.array([curve_x, curve_y]) * 8
             total_vel = (corr_vel + curve_vel).astype(float)
             # np.dot()
