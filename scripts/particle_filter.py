@@ -32,6 +32,7 @@ from geometry_msgs.msg import Twist, Vector3
 # demo toggles
 enable_motion_demo = False
 enable_closestMap_viz_demo = False
+enable_path_following_demo = True
 
 # global configs
 is_rplidar = False
@@ -317,6 +318,14 @@ class ParticleFilter:
         self.pub_cmd_vel = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
         # initialize shutdown callback so that robot halts on ctrl + c:
         rospy.on_shutdown(lambda : halt(self.pub_cmd_vel))
+        
+        if (enable_path_following_demo):
+            self.closest_point = None
+            self.curve_vel = np.zeros(2)
+            self.corr_vel = np.zeros(2)
+            self.initialized = True
+            
+            return
         
 
 
@@ -621,6 +630,26 @@ class ParticleFilter:
         # if there isn't a prior odom pose, set the odom_pose variable to the current pose
         if not self.odom_pose_last_motion_update:
             self.odom_pose_last_motion_update = self.odom_pose
+            return
+        
+        if enable_path_following_demo:
+            curr_x = self.odom_pose.pose.position.x
+            curr_y = self.odom_pose.pose.position.y
+            curr_yaw = get_yaw_from_pose(self.odom_pose.pose)
+            
+            corr_vel = np.array([0, -curr_y -1])
+            curve_vel = np.array([-1, 0])
+            total_vel = corr_vel + curve_vel
+            # np.dot()
+            target_yaw = np.arctan2(total_vel[1], total_vel[0])
+            ang_error = wrapto_pi(target_yaw - curr_yaw)
+            lin_error = (abs(ang_error) / np.pi - 1) ** 12
+            
+            self.pub_cmd_vel.publish(Twist(linear=Vector3(0.2*lin_error,0,0),angular=Vector3(0,0, 2 * ang_error)))
+            init_pose(self.curr_pose, curr_x, curr_y, curr_yaw)
+            self.publish_pose()
+            self.odom_pose_last_motion_update = self.odom_pose
+            
             return
 
 
