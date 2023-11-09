@@ -128,35 +128,30 @@ def demo_visualize_closestMap(self):
     
     
 import sympy as s
-curr_x = 1
-curr_y = 2
-x_var = s.Symbol("x")
-y_var = s.Symbol("y")
-# f_func = x_var ** 2
-# f_func = (x_var - 2) ** 3 + 2 * (x_var - 2) ** 2
-# f_func = s.Piecewise((0, x_var <= -1), (2 * x_var, x_var <= 1), (-2 * x_var + 4, True))
-# f_func = s.sin(4 * x_var)/2
-path_eq = s.Eq(y_var - x_var ** 2, 0)
-f_func = s.solve(path_eq, y_var)[0]
-fp_func = s.diff(f_func, x_var)
-f_lam = s.lambdify(x_var, f_func, "numpy")
-fp_lam = s.lambdify(x_var, fp_func, "numpy")
+t_var = s.Symbol("t")
+x_func = s.cos(t_var)
+y_func = s.sin(t_var) + 1
+x_lam = s.lambdify(t_var, x_func, "numpy")
+y_lam = s.lambdify(t_var, y_func, "numpy")
+xp_func = s.diff(x_func, t_var)
+yp_func = s.diff(y_func, t_var)
+xp_lam = s.lambdify(t_var, xp_func, "numpy")
+yp_lam = s.lambdify(t_var, yp_func, "numpy")
 a_var = s.Symbol("a")
 b_var = s.Symbol("b")
-d_func = (x_var - a_var) ** 2 + (f_func - b_var) ** 2
+d_func = (x_func - a_var) ** 2 + (y_func - b_var) ** 2
 # d = (x - 1) ** 2 + (f - 2) ** 2
-dp_func = s.diff(d_func, x_var)
-dpp_func = s.diff(dp_func, x_var)
+dp_func = s.diff(d_func, t_var)
+dpp_func = s.diff(dp_func, t_var)
     
 def visualize_curve(self):    
-    xs = np.arange(0, 100, 0.1)
+    ts = np.arange(0, 100, 0.1)
     particle_cloud_pose_array = PoseArray()
     particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
-    for x in xs:
+    for t in ts:
         curr_pose = Pose()
-        deriv = fp_lam(x)
         
-        init_pose(curr_pose, x, f_lam(x), np.arctan2(deriv, 1))
+        init_pose(curr_pose, x_lam(t), y_lam(t), np.arctan2(yp_lam(t), xp_lam(t)))
         particle_cloud_pose_array.poses.append(curr_pose)
     self.particles_pub.publish(particle_cloud_pose_array)
     
@@ -355,6 +350,7 @@ class ParticleFilter:
             self.closest_point = None
             self.curve_vel = np.zeros(2)
             self.corr_vel = np.zeros(2)
+            self.curr_t = 0
             self.initialized = True
             
             return
@@ -678,26 +674,30 @@ class ParticleFilter:
 
             if not is_approx:
                 # roots = s.Poly(dp, x).nroots()
-                roots = s.real_roots(dp_curr, x_var)
-                clos_x_sym = min(roots, key = lambda r : d_curr.subs(x_var, r).evalf())
-                clos_y_sym = f_lam(clos_x_sym)
+                roots = s.real_roots(dp_curr, t_var)
+                t = min(roots, key = lambda r : d_curr.subs(t_var, r).evalf())
+                clos_x_sym = x_lam(t)
+                clos_y_sym = y_lam(t)
                 
                 clos_x = clos_x_sym.evalf()
                 clos_y = clos_y_sym.evalf()
                 
-                curve_x = 1
-                curve_y = fp_func.subs(x_var, clos_x_sym).evalf()
+                curve_x = xp_func.subs(t_var, clos_x_sym).evalf()
+                curve_y = yp_func.subs(t_var, clos_x_sym).evalf()
                 
             else:
                 from scipy.optimize import minimize_scalar
-                d_curr_lam = s.lambdify(x_var, d_curr, "numpy")
-                result = minimize_scalar(d_curr_lam, bounds=(curr_x - 0.5, curr_x + 0.5), method='bounded')
+                d_curr_lam = s.lambdify(t_var, d_curr, "numpy")
+                result = minimize_scalar(d_curr_lam, bounds=(self.curr_t - 0.2, self.curr_t + 0.5), method='bounded')
+                t = result.x
             
-                clos_x = result.x
-                clos_y = f_lam(clos_x)
+                clos_x = x_lam(t)
+                clos_y = y_lam(t)
             
-                curve_x = 1
-                curve_y = fp_lam(clos_x)
+                curve_x = xp_lam(t)
+                curve_y = yp_lam(t)
+                
+                self.curr_t = t
             
             corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * 64
             curve_vel = np.array([curve_x, curve_y]) * 8
