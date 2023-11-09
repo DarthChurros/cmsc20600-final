@@ -127,6 +127,18 @@ def demo_visualize_closestMap(self):
     exit(0)
     
     
+import sympy as s
+curr_x = 1
+curr_y = 2
+x_var = s.Symbol("x")
+f_func = x_var ** 2
+fp_func = s.diff(f_func, x_var)
+a_var = s.Symbol("a")
+b_var = s.Symbol("b")
+d_func = (x_var - a_var) ** 2 + (f_func - b_var) ** 2
+# d = (x - 1) ** 2 + (f - 2) ** 2
+dp_func = s.diff(d_func, x_var)
+dpp_func = s.diff(dp_func, x_var)
     
     
 def add_node(path_arr, dx, dy, idx):
@@ -637,13 +649,27 @@ class ParticleFilter:
             curr_y = self.odom_pose.pose.position.y
             curr_yaw = get_yaw_from_pose(self.odom_pose.pose)
             
-            corr_vel = np.array([0, -curr_y -1])
-            curve_vel = np.array([-1, 0])
-            total_vel = corr_vel + curve_vel
+            d_curr = d_func.subs(a_var, curr_x).subs(b_var, curr_y)
+            dp_curr = dp_func.subs(a_var, curr_x).subs(b_var, curr_y)
+
+            # roots = s.Poly(dp, x).nroots()
+            roots = s.real_roots(dp_curr, x_var)
+            clos_x_sym = min(roots, key = lambda r : d_curr.subs(x_var, r).evalf())
+            clos_y_sym = f_func.subs(x_var, clos_x_sym)
+            
+            clos_x = clos_x_sym.evalf()
+            clos_y = clos_y_sym.evalf()
+            
+            curve_x = 1
+            curve_y = fp_func.subs(x_var, clos_x_sym).evalf()
+            
+            corr_vel = np.array([clos_x - curr_x, clos_y - curr_y])
+            curve_vel = np.array([curve_x, curve_y])
+            total_vel = (corr_vel + curve_vel).astype(float)
             # np.dot()
             target_yaw = np.arctan2(total_vel[1], total_vel[0])
             ang_error = wrapto_pi(target_yaw - curr_yaw)
-            lin_error = (abs(ang_error) / np.pi - 1) ** 12
+            lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 12
             
             self.pub_cmd_vel.publish(Twist(linear=Vector3(0.2*lin_error,0,0),angular=Vector3(0,0, 2 * ang_error)))
             init_pose(self.curr_pose, curr_x, curr_y, curr_yaw)
