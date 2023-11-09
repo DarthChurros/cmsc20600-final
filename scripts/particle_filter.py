@@ -131,7 +131,8 @@ import sympy as s
 curr_x = 1
 curr_y = 2
 x_var = s.Symbol("x")
-f_func = x_var ** 2
+# f_func = x_var ** 2
+f_func = (x_var - 2) ** 3 + 2 * (x_var - 2) ** 2
 fp_func = s.diff(f_func, x_var)
 f_lam = s.lambdify(x_var, f_func, "numpy")
 fp_lam = s.lambdify(x_var, fp_func, "numpy")
