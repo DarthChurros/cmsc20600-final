@@ -660,7 +660,7 @@ class ParticleFilter:
             return
         
         if enable_path_following_demo:
-            is_approx = True
+            is_approx = False
             
             # start=time.time()
             curr_x = self.odom_pose.pose.position.x
@@ -675,7 +675,7 @@ class ParticleFilter:
                 # roots = s.Poly(dp, x).nroots()
                 roots = s.real_roots(dp_curr, x_var)
                 clos_x_sym = min(roots, key = lambda r : d_curr.subs(x_var, r).evalf())
-                clos_y_sym = f_func.subs(x_var, clos_x_sym)
+                clos_y_sym = f_lam(clos_x_sym)
                 
                 clos_x = clos_x_sym.evalf()
                 clos_y = clos_y_sym.evalf()
