@@ -133,12 +133,26 @@ curr_y = 2
 x_var = s.Symbol("x")
 f_func = x_var ** 2
 fp_func = s.diff(f_func, x_var)
+f_lam = s.lambdify(x_var, f_func, "numpy")
+fp_lam = s.lambdify(x_var, fp_func, "numpy")
 a_var = s.Symbol("a")
 b_var = s.Symbol("b")
 d_func = (x_var - a_var) ** 2 + (f_func - b_var) ** 2
 # d = (x - 1) ** 2 + (f - 2) ** 2
 dp_func = s.diff(d_func, x_var)
 dpp_func = s.diff(dp_func, x_var)
+    
+def visualize_curve(self):    
+    xs = np.arange(0, 100, 0.1)
+    particle_cloud_pose_array = PoseArray()
+    particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
+    for x in xs:
+        curr_pose = Pose()
+        deriv = fp_lam(x)
+        
+        init_pose(curr_pose, x, f_lam(x), np.arctan2(deriv, 1))
+        particle_cloud_pose_array.poses.append(curr_pose)
+    self.particles_pub.publish(particle_cloud_pose_array)
     
     
 def add_node(path_arr, dx, dy, idx):
@@ -645,6 +659,7 @@ class ParticleFilter:
             return
         
         if enable_path_following_demo:
+            # start=time.time()
             curr_x = self.odom_pose.pose.position.x
             curr_y = self.odom_pose.pose.position.y
             curr_yaw = get_yaw_from_pose(self.odom_pose.pose)
@@ -663,12 +678,14 @@ class ParticleFilter:
             curve_x = 1
             curve_y = fp_func.subs(x_var, clos_x_sym).evalf()
             
-            corr_vel = np.array([clos_x - curr_x, clos_y - curr_y])
-            curve_vel = np.array([curve_x, curve_y])
+            corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * 16
+            curve_vel = np.array([curve_x, curve_y]) * 8
             total_vel = (corr_vel + curve_vel).astype(float)
             # np.dot()
             target_yaw = np.arctan2(total_vel[1], total_vel[0])
             ang_error = wrapto_pi(target_yaw - curr_yaw)
+            pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y))
+            print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
             lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 12
             
             self.pub_cmd_vel.publish(Twist(linear=Vector3(0.2*lin_error,0,0),angular=Vector3(0,0, 2 * ang_error)))
@@ -961,6 +978,11 @@ if __name__=="__main__":
 
     pf = ParticleFilter()
     print("HERE")
+    if enable_path_following_demo:
+        while not rospy.is_shutdown():
+            visualize_curve(pf)
+            time.sleep(1)
+        exit(0)
     rospy.spin()
 
 
