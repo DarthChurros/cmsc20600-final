@@ -131,10 +131,13 @@ import sympy as s
 curr_x = 1
 curr_y = 2
 x_var = s.Symbol("x")
+y_var = s.Symbol("y")
 # f_func = x_var ** 2
 # f_func = (x_var - 2) ** 3 + 2 * (x_var - 2) ** 2
-f_func = s.Piecewise((0, x_var <= -1), (2 * x_var, x_var <= 1), (-2 * x_var + 4, True))
+# f_func = s.Piecewise((0, x_var <= -1), (2 * x_var, x_var <= 1), (-2 * x_var + 4, True))
 # f_func = s.sin(4 * x_var)/2
+path_eq = s.Eq(y_var - x_var ** 2, 0)
+f_func = s.solve(path_eq)[0][y_var]
 fp_func = s.diff(f_func, x_var)
 f_lam = s.lambdify(x_var, f_func, "numpy")
 fp_lam = s.lambdify(x_var, fp_func, "numpy")
