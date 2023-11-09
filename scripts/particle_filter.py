@@ -33,6 +33,9 @@ from geometry_msgs.msg import Twist, Vector3
 enable_motion_demo = False
 enable_closestMap_viz_demo = False
 
+# global configs
+is_rplidar = False
+
 def get_yaw_from_pose(p):
     """ A helper function that takes in a Pose object (geometry_msgs) and returns yaw"""
 
@@ -753,11 +756,19 @@ class ParticleFilter:
 
         # Include every "angle_incr"-th lidar angle
         angle_incr = 1 # 3 increment ~ 0.9 degrees
-        angle_indices = np.arange(0, 360, angle_incr)
-        num_angles = len(angle_indices)
         
-        # convert from lidar angle indices to angles
-        lidar_angles = angle_indices * (2 * np.pi) / 360
+        if is_rplidar:
+            angle_indices = np.arange(0, 1147, angle_incr)
+            num_angles = len(angle_indices)
+            
+            # convert from lidar angle indices to angles
+            lidar_angles = angle_indices * (2 * np.pi) / 1147 - np.pi
+        else:
+            angle_indices = np.arange(0, 360, angle_incr)
+            num_angles = len(angle_indices)
+            
+            # convert from lidar angle indices to angles
+            lidar_angles = angle_indices * (2 * np.pi) / 360
         
         if enable_measure_model_demo:
             # dummy ranges value for demo purposes
