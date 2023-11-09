@@ -132,7 +132,9 @@ curr_x = 1
 curr_y = 2
 x_var = s.Symbol("x")
 # f_func = x_var ** 2
-f_func = (x_var - 2) ** 3 + 2 * (x_var - 2) ** 2
+# f_func = (x_var - 2) ** 3 + 2 * (x_var - 2) ** 2
+f_func = s.Piecewise((0, x_var <= -1), (2 * x_var, x_var <= 1), (-2 * x_var + 4, True))
+# f_func = s.sin(4 * x_var)/2
 fp_func = s.diff(f_func, x_var)
 f_lam = s.lambdify(x_var, f_func, "numpy")
 fp_lam = s.lambdify(x_var, fp_func, "numpy")
@@ -704,7 +706,7 @@ class ParticleFilter:
             # print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
             lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 16
             
-            self.pub_cmd_vel.publish(Twist(linear=Vector3(lin_error,0,0),angular=Vector3(0,0, ang_error)))
+            self.pub_cmd_vel.publish(Twist(linear=Vector3(0.3 * lin_error,0,0),angular=Vector3(0,0, ang_error)))
             init_pose(self.curr_pose, curr_x, curr_y, curr_yaw)
             self.publish_pose()
             self.odom_pose_last_motion_update = self.odom_pose
