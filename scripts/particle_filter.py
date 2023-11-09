@@ -660,6 +660,8 @@ class ParticleFilter:
             return
         
         if enable_path_following_demo:
+            is_approx = True
+            
             # start=time.time()
             curr_x = self.odom_pose.pose.position.x
             curr_y = self.odom_pose.pose.position.y
@@ -668,18 +670,31 @@ class ParticleFilter:
             d_curr = d_func.subs(a_var, curr_x).subs(b_var, curr_y)
             dp_curr = dp_func.subs(a_var, curr_x).subs(b_var, curr_y)
 
-            # roots = s.Poly(dp, x).nroots()
-            roots = s.real_roots(dp_curr, x_var)
-            clos_x_sym = min(roots, key = lambda r : d_curr.subs(x_var, r).evalf())
-            clos_y_sym = f_func.subs(x_var, clos_x_sym)
+
+            if not is_approx:
+                # roots = s.Poly(dp, x).nroots()
+                roots = s.real_roots(dp_curr, x_var)
+                clos_x_sym = min(roots, key = lambda r : d_curr.subs(x_var, r).evalf())
+                clos_y_sym = f_func.subs(x_var, clos_x_sym)
+                
+                clos_x = clos_x_sym.evalf()
+                clos_y = clos_y_sym.evalf()
+                
+                curve_x = 1
+                curve_y = fp_func.subs(x_var, clos_x_sym).evalf()
+                
+            else:
+                from scipy.optimize import minimize_scalar
+                d_curr_lam = s.lambdify(x_var, d_curr, "numpy")
+                result = minimize_scalar(d_curr_lam, bounds=(curr_x - 0.5, curr_x + 0.5), method='bounded')
             
-            clos_x = clos_x_sym.evalf()
-            clos_y = clos_y_sym.evalf()
+                clos_x = result.x
+                clos_y = f_lam(clos_x)
             
-            curve_x = 1
-            curve_y = fp_func.subs(x_var, clos_x_sym).evalf()
+                curve_x = 1
+                curve_y = fp_lam(clos_x)
             
-            corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * 16
+            corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * 64
             curve_vel = np.array([curve_x, curve_y]) * 8
             total_vel = (corr_vel + curve_vel).astype(float)
             # np.dot()
@@ -689,7 +704,7 @@ class ParticleFilter:
             print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
             lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 12
             
-            self.pub_cmd_vel.publish(Twist(linear=Vector3(0.2*lin_error,0,0),angular=Vector3(0,0, 2 * ang_error)))
+            self.pub_cmd_vel.publish(Twist(linear=Vector3(lin_error,0,0),angular=Vector3(0,0, ang_error)))
             init_pose(self.curr_pose, curr_x, curr_y, curr_yaw)
             self.publish_pose()
             self.odom_pose_last_motion_update = self.odom_pose
