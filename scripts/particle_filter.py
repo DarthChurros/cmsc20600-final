@@ -32,7 +32,7 @@ from geometry_msgs.msg import Twist, Vector3
 # demo toggles
 enable_motion_demo = False
 enable_closestMap_viz_demo = False
-enable_path_following_demo = True
+enable_path_following_demo = False
 
 # global configs
 is_rplidar = False
@@ -124,7 +124,6 @@ def demo_visualize_closestMap(self):
     
     plt.imshow(closestMap, cmap='hot', interpolation='nearest')
     plt.show()
-    exit(0)
     
     
 import sympy as s
@@ -133,6 +132,13 @@ t_var = s.Symbol("t")
 # y_func = s.sin(t_var) + 1
 x_func = 0.2 * t_var * s.cos(t_var)
 y_func = 0.2 * t_var * s.sin(t_var)
+x_func = s.Piecewise((0.20 * t_var + 0.8, t_var <= 1), (0.45 * t_var + 0.55, t_var <= 2), (-0.12 * t_var + 1.69, t_var <= 3), (1.33, True))
+y_func = s.Piecewise((1.15 * t_var + 0.3, t_var <= 1), (1.45, t_var <= 2), (-1.3 * t_var + 4.05, t_var <= 3), (0.15, True))
+
+# start: 0.8, 0.3, 0
+# 0.25, 1.15, 1
+# 0.45, 0, 1
+# -0.12, -1.3, 1
 x_lam = s.lambdify(t_var, x_func, "numpy")
 y_lam = s.lambdify(t_var, y_func, "numpy")
 xp_func = s.diff(x_func, t_var)
@@ -275,10 +281,10 @@ class ParticleFilter:
         # set threshold values for linear and angular movement before we preform an update
         # self.lin_mvmt_threshold = 0.2        
         # self.ang_mvmt_threshold = (np.pi / 6)
-        # self.lin_mvmt_threshold = 0.01        
-        # self.ang_mvmt_threshold = (np.pi / 180)
-        self.lin_mvmt_threshold = 0        
-        self.ang_mvmt_threshold = 0
+        self.lin_mvmt_threshold = 0.01        
+        self.ang_mvmt_threshold = (np.pi / 180)
+        # self.lin_mvmt_threshold = 0        
+        # self.ang_mvmt_threshold = 0
         self.first_scan_rcvd = True # on the first received scan, we should check deltas (otherwise it will never start)
 
         self.odom_pose_last_motion_update = None
@@ -316,6 +322,7 @@ class ParticleFilter:
         # idx = add_node(path, 0, -2, idx)
         # idx = add_node(path, -2, -2, idx)
         idx = add_node(path, 0.25, 1.15, idx)
+        
         idx = add_node(path, 0.45, 0, idx)
         idx = add_node(path, -0.12, -1.3, idx)
         # idx = add_node(path, 1.5, 1, idx)
@@ -327,20 +334,22 @@ class ParticleFilter:
         self.node_idx = 0
         
         
-        particle_cloud_pose_array = PoseArray()
-        particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
-        for i in range(path.shape[1]):
-            curr_pose = Pose()
-            init_pose(curr_pose, path[0, i], path[1, i], path[2, i])
-            particle_cloud_pose_array.poses.append(curr_pose)
+        # particle_cloud_pose_array = PoseArray()
+        # particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
+        # for i in range(path.shape[1]):
+        #     curr_pose = Pose()
+        #     init_pose(curr_pose, path[0, i], path[1, i], path[2, i])
+        #     particle_cloud_pose_array.poses.append(curr_pose)
             
         self.curr_pose = Pose()
+        self.last_pose = Pose()
         init_pose(self.curr_pose, 0.75, 0.25, 0)
+        init_pose(self.last_pose, 0.75, 0.25, 0)
         self.publish_pose()
 
-        for i in range(10):
-            self.particles_pub.publish(particle_cloud_pose_array)
-            time.sleep(0.1)
+        # for i in range(10):
+        #     self.particles_pub.publish(particle_cloud_pose_array)
+        #     time.sleep(0.1)
         
         self.path_idx = 0
         self.target_yaw = self.path[2, self.path_idx]
@@ -348,14 +357,15 @@ class ParticleFilter:
         # initialize shutdown callback so that robot halts on ctrl + c:
         rospy.on_shutdown(lambda : halt(self.pub_cmd_vel))
         
+        self.curr_t = 0
         if (enable_path_following_demo):
             self.closest_point = None
             self.curve_vel = np.zeros(2)
             self.corr_vel = np.zeros(2)
-            self.curr_t = 0
             self.initialized = True
             
             return
+        demo_visualize_closestMap(self) # input the whole cloestMap
         
 
 
@@ -450,8 +460,8 @@ class ParticleFilter:
             y = rng.integers(low=0,high=h)
             yaw = rng.random() * 2 * np.pi
             
-            # while self.map.data[y*w + x] > 10 or self.map.data[y*w+x] == -1 or x >= 223:
-            while self.map.data[y*w + x] > 10 or self.map.data[y*w+x] == -1:
+            while self.map.data[y*w + x] > 10 or self.map.data[y*w+x] == -1 or x >= 223 or y >= 223:
+            # while self.map.data[y*w + x] > 10 or self.map.data[y*w+x] == -1:
                 # re-generate (x,y) until it no longer:
                 # 1) occupies an obstacle, OR
                 # 2) is out of bounds
@@ -630,6 +640,9 @@ class ParticleFilter:
         # wait until initialization is complete
         if not(self.initialized):
             return
+        
+        # self.odom_pose = PoseStamped()
+        # self.odom_pose_last_motion_update = PoseStamped()
 
         # we need to be able to transfrom the laser frame to the base frame
         if not(self.tf_listener.canTransform(self.base_frame, data.header.frame_id, data.header.stamp)):
@@ -690,7 +703,7 @@ class ParticleFilter:
             else:
                 from scipy.optimize import minimize_scalar
                 d_curr_lam = s.lambdify(t_var, d_curr, "numpy")
-                result = minimize_scalar(d_curr_lam, bounds=(self.curr_t - 1, self.curr_t + 1), method='bounded')
+                result = minimize_scalar(d_curr_lam, bounds=(self.curr_t - 0.01, self.curr_t + 0.1), method='bounded')
                 t = result.x
             
                 clos_x = x_lam(t)
@@ -702,18 +715,17 @@ class ParticleFilter:
                 self.curr_t = t
             
             corr_weight = np.e ** (100 * np.hypot(clos_x - curr_x, clos_y - curr_y)) - 1
-            corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * 64 * corr_weight
+            corr_vel = np.array([clos_x - curr_x, clos_y - curr_y])
             curve_vel = np.array([curve_x, curve_y]) * 8
             total_vel = (corr_vel + curve_vel).astype(float)
             # np.dot()
             target_yaw = np.arctan2(total_vel[1], total_vel[0])
             ang_error = wrapto_pi(target_yaw - curr_yaw)
             pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y))
-            # print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
+            print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
             lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 16
             
             self.pub_cmd_vel.publish(Twist(linear=Vector3(0.3 * lin_error,0,0),angular=Vector3(0,0, ang_error)))
-            init_pose(self.curr_pose, curr_x, curr_y, curr_yaw)
             self.publish_pose()
             self.odom_pose_last_motion_update = self.odom_pose
             
@@ -743,28 +755,76 @@ class ParticleFilter:
                 curr_y = self.curr_pose.position.y
                 curr_yaw = get_yaw_from_pose(self.curr_pose)
                 
-                next_node = self.path[:2, self.node_idx + 1]
-                d = np.hypot(next_node[0] - curr_x, next_node[1] - curr_y)
-                if d < 0.02:
-                    self.node_idx += 1
-                    next_node = self.path[:2, self.node_idx + 1]
+                # next_node = self.path[:2, self.node_idx + 1]
+                # d = np.hypot(next_node[0] - curr_x, next_node[1] - curr_y)
+                # if d < 0.02:
+                #     self.node_idx += 1
+                #     next_node = self.path[:2, self.node_idx + 1]
                 
-                target_yaw = np.arctan2(next_node[1] - curr_y, next_node[0] - curr_x)
-                ang_error = wrapto_pi(target_yaw - curr_yaw)
+                # target_yaw = np.arctan2(next_node[1] - curr_y, next_node[0] - curr_x)
+                # ang_error = wrapto_pi(target_yaw - curr_yaw)
 
                 
-                deltas = self.path[:2, self.node_idx + 1] - [curr_x, curr_y]
-                dist = np.hypot(deltas[0], deltas[1])
+                # deltas = self.path[:2, self.node_idx + 1] - [curr_x, curr_y]
+                # dist = np.hypot(deltas[0], deltas[1])
                 # print(f"curr {self.node_idx}, target {self.node_idx + 1}")
                 # print(f"target_yaw {np.rad2deg(target_yaw)}, deltas {deltas}, dist {dist}")
                 
-                # lin_error = absolute_cutoff(dist + 0.4, limit=1) * (abs(ang_error) / np.pi - 1) ** 12
-                lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 12
+                is_approx = True
+            
+                start=time.time()
+                d_curr = d_func.subs(a_var, curr_x).subs(b_var, curr_y)
+                dp_curr = dp_func.subs(a_var, curr_x).subs(b_var, curr_y)
+
+
+                if not is_approx:
+                    # roots = s.Poly(dp, x).nroots()
+                    roots = s.real_roots(dp_curr, t_var)
+                    t = min(roots, key = lambda r : d_curr.subs(t_var, r).evalf())
+                    clos_x_sym = x_lam(t)
+                    clos_y_sym = y_lam(t)
+                    
+                    clos_x = clos_x_sym.evalf()
+                    clos_y = clos_y_sym.evalf()
+                    
+                    curve_x = xp_func.subs(t_var, clos_x_sym).evalf()
+                    curve_y = yp_func.subs(t_var, clos_x_sym).evalf()
+                    
+                else:
+                    from scipy.optimize import minimize_scalar
+                    d_curr_lam = s.lambdify(t_var, d_curr, "numpy")
+                    result = minimize_scalar(d_curr_lam, bounds=(self.curr_t - 1, self.curr_t + 1), method='bounded')
+                    t = result.x
                 
-                self.pub_cmd_vel.publish(Twist(linear=Vector3(0.2*lin_error,0,0),angular=Vector3(0,0,ang_error)))
+                    clos_x = x_lam(t)
+                    clos_y = y_lam(t)
+                
+                    curve_x = xp_lam(t)
+                    curve_y = yp_lam(t)
+                    
+                    self.curr_t = t
+                
+                corr_weight = np.e ** (100 * np.hypot(clos_x - curr_x, clos_y - curr_y)) - 1
+                corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * 16
+                curve_vel = np.array([curve_x, curve_y]) * 8
+                total_vel = (corr_vel + curve_vel).astype(float)
+                # np.dot()
+                target_yaw = np.arctan2(total_vel[1], total_vel[0])
+                ang_error = wrapto_pi(target_yaw - curr_yaw)
+                pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y))
+                print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
+
+                
+                # print("time: ", time.time() - start)
+                
+                # lin_error = absolute_cutoff(dist + 0.4, limit=1) * (abs(ang_error) / np.pi - 1) ** 12
+                lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 16
+                
+                self.pub_cmd_vel.publish(Twist(linear=Vector3(0.5*lin_error,0,0),angular=Vector3(0,0,0.5*ang_error)))
+                init_pose(self.last_pose, self.curr_pose.position.x, self.curr_pose.position.y, get_yaw_from_pose(self.curr_pose))
                 init_pose(self.curr_pose, curr_x, curr_y, curr_yaw)
                 self.publish_pose()
-                self.odom_pose_last_motion_update = self.odom_pose
+                # self.odom_pose_last_motion_update = self.odom_pose
                 
                 # return                
 
@@ -944,8 +1004,8 @@ class ParticleFilter:
         '''
         
         # standard deviations for noise
-        angle_increment = 15 * np.pi / 180
-        linear_increment = 0.1
+        angle_increment = 5 * np.pi / 180
+        linear_increment = 0.01
         
         # demo toggle
         use_dummy_deltas = enable_motion_demo
@@ -968,6 +1028,7 @@ class ParticleFilter:
             dx_raw = curr_x - old_x
             dy_raw = curr_y - old_y
             dyaw_raw = curr_yaw - old_yaw
+            print(f"ds {dx_raw} {dy_raw} {dyaw_raw}")
         
         # generate random tapes for movement noise
         # e.g. dx_noise[i] == x translation noise for particle i
