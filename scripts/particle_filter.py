@@ -660,9 +660,9 @@ class ParticleFilter:
             return
         
         if enable_path_following_demo:
-            is_approx = False
+            is_approx = True
             
-            # start=time.time()
+            start=time.time()
             curr_x = self.odom_pose.pose.position.x
             curr_y = self.odom_pose.pose.position.y
             curr_yaw = get_yaw_from_pose(self.odom_pose.pose)
@@ -701,13 +701,15 @@ class ParticleFilter:
             target_yaw = np.arctan2(total_vel[1], total_vel[0])
             ang_error = wrapto_pi(target_yaw - curr_yaw)
             pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y))
-            print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
-            lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 12
+            # print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
+            lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 16
             
             self.pub_cmd_vel.publish(Twist(linear=Vector3(lin_error,0,0),angular=Vector3(0,0, ang_error)))
             init_pose(self.curr_pose, curr_x, curr_y, curr_yaw)
             self.publish_pose()
             self.odom_pose_last_motion_update = self.odom_pose
+            
+            # print("time: ", time.time() - start)
             
             return
 
