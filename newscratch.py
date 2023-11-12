@@ -72,21 +72,48 @@ def demo_list_piecewise():
     import sympy as s
     prevT = time.time()
     t_var = s.Symbol("t")
-    num_segments = 1000
-    x_func = s.Piecewise(*[(i * t_var + i, t_var <= i + 1) for i in range(num_segments)])
+    a_var = s.Symbol("a")
+    num_segments = 100
+    x_func = s.Piecewise(*[(i * t_var + i + a_var, t_var <= i + 1) for i in range(num_segments)])
     nextT = time.time()
     print("create piece_wise: ", nextT - prevT)
+    
     
     prevT = nextT
     x_lam = s.lambdify(t_var, x_func, "numpy")
     nextT = time.time()
     print("lambdify: ", nextT - prevT)
+    
+    
     prevT = nextT
-    for i in range(num_segments):
+    for i in range(1000):
         t = x_lam(i)
     nextT = time.time()
     print("eval: ", nextT - prevT)
+    
+    
+    prevT = nextT
+    xp = s.diff(x_func, t_var)
+    nextT = time.time()
+    print("diff: ", nextT - prevT)
+    
+    
+    prevT = nextT
+    xp_curr = xp.subs(a_var, 2)
+    nextT = time.time()
     print(x_func)
+    print("subs: ", nextT - prevT)
+    
+    
+    np_x = lambda x : np.piecewise(x, [x <= i + 1 for i in range(num_segments)], [lambda x : i * x + i for i in range(num_segments)])
+    prevT = nextT
+    xp_curr_lam = s.lambdify(t_var, xp_curr)
+    from scipy.optimize import minimize_scalar
+    result = minimize_scalar(np_x, bounds=(-1000, 1000), method='bounded')
+    t = result.x
+    nextT = time.time()
+    print("minimize_sclalar: ", nextT - prevT)
+    
 
     x_func = s.Piecewise((0.20 * t_var + 0.8, t_var <= 1), (0.45 * t_var + 0.55, t_var <= 2), (-0.12 * t_var + 1.69, t_var <= 3), (1.33, True))
 
