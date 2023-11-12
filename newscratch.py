@@ -155,7 +155,7 @@ def scipy_interpolate():
             # print("curve_t", t, curve_point, dist)
             return dist
 
-        result = scipy.optimize.minimize_scalar(objective, bounds=((0.5, 1)))
+        result = scipy.optimize.minimize_scalar(objective, bounds=(0.5, 1), method="bounded")
         return result.x
 
     # Given point (x, y)
