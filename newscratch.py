@@ -135,6 +135,7 @@ def scipy_interpolate():
     
     der_points = splev(u, tck, der=1)
     print("tck:\n", der_points)
+    print("tck:\n", new_points)
     
     import matplotlib.pyplot as plt
     prevT = nextT
@@ -146,6 +147,27 @@ def scipy_interpolate():
     nextT = time.time()
     print("plot: ", nextT - prevT)
     
+    import scipy
+    def distance_to_curve(point, tck):
+        x, y = point
+        def objective(t):
+            curve_point = splev(t, tck)
+            return np.sqrt((x - curve_point[0])**2 + (y - curve_point[1])**2)
+        result = scipy.optimize.minimize(objective, x0=0.5, bounds=[(0, 1)])
+        return result.x[0]
+
+    # Given point (x, y)
+    given_point = (0.5, 0)
+
+    # Find the closest point on the curve to the given point
+    closest_point_t = distance_to_curve(given_point, tck)
+
+    # Evaluate the B-spline curve at the closest point parameter
+    closest_point_on_curve = np.array(splev(closest_point_t, tck))
+
+    print("Given Point:", given_point)
+    print("Closest Point on Curve:", closest_point_on_curve)
+            
 if __name__=="__main__":    
 
     # demo_sympy()
