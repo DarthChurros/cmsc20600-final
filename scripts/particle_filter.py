@@ -931,6 +931,12 @@ class ParticleFilter:
         dys = dy_noise + dy_raw
         dyaws = dyaw_noise + dyaw_raw
         
+        thetas = self.yaws - old_yaw
+        
+        # update particle positions by corresponding (transformed) deltas
+        self.poses[0, :] += (dxs * np.cos(thetas) - dys * np.sin(thetas))
+        self.poses[1, :] += (dxs * np.sin(thetas) + dys * np.cos(thetas))  
+                  
         # update particle yaws by corresponding deltas (modulo to wrap around)
         self.yaws = (self.yaws + dyaws) % (2 * np.pi)
         
