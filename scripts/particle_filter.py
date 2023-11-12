@@ -232,7 +232,7 @@ class ParticleFilter:
             demo_visualize_closestMap(self.closestMap[190:300 + 1, 160:300 + 1])
 
         # the number of particles used in the particle filter
-        self.find_num_particles = 10**4 # num_particles for searching/convergence
+        self.find_num_particles = 10**5 # num_particles for searching/convergence
         self.num_particles = 10**3 # num_particles for tracking
         assert (self.find_num_particles >= self.num_particles)
         
@@ -556,6 +556,10 @@ class ParticleFilter:
         with self.finding_lock:
             self.finding = True
             self.first_pf_cycle = True
+            with robot_estimate_cv:
+                robot_estimate_set = False
+                robot_estimate_updated = False
+                robot_estimate_cv.notify_all()
 
 
 
@@ -784,11 +788,20 @@ class ParticleFilter:
 
         # Include every "angle_incr"-th lidar angle
         angle_incr = 3 # 3 increment ~ 0.9 degrees
-        angle_indices = np.arange(0, 1147, angle_incr)
-        num_angles = len(angle_indices)
+        is_rplidar = False
         
-        # convert from lidar angle indices to angles
-        lidar_angles = angle_indices * (2 * np.pi) / 1147 - np.pi
+        if is_rplidar:
+            angle_indices = np.arange(0, 1147, angle_incr)
+            num_angles = len(angle_indices)
+            
+            # convert from lidar angle indices to angles
+            lidar_angles = angle_indices * (2 * np.pi) / 1147 - np.pi
+        else:
+            angle_indices = np.arange(0, 360, angle_incr)
+            num_angles = len(angle_indices)
+            
+            # convert from lidar angle indices to angles
+            lidar_angles = angle_indices * (2 * np.pi) / 360
         
         if enable_measure_model_demo:
             # dummy ranges value for demo purposes
@@ -983,7 +996,7 @@ if __name__=="__main__":
     # while not rospy.is_shutdown():
     #     time.sleep(0.5)
     #     pass
-    
+
     while not rospy.is_shutdown():
         with robot_estimate_cv:
             while not robot_estimate_updated:
@@ -1019,6 +1032,8 @@ if __name__=="__main__":
         else:
             from scipy.optimize import minimize_scalar
             d_curr_lam = s.lambdify(t_var, d_curr, "numpy")
+            
+            # 0.01 gives a sense of urgency; always pick at least slightly further along the curve
             result = minimize_scalar(d_curr_lam, bounds=(curr_t + 0.01, curr_t + 1), method='bounded')
             t = result.x
         
