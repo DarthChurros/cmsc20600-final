@@ -942,11 +942,6 @@ class ParticleFilter:
         
         # print(f"dx: {dx_raw}, dy: {dy_raw}, dyaw: {dyaw_raw}")
         
-        # update particle positions by corresponding (transformed) deltas
-        thetas = self.yaws - old_yaw
-        
-        self.poses[0, :] += (dxs * np.cos(thetas) - dys * np.sin(thetas))
-        self.poses[1, :] += (dxs * np.sin(thetas) + dys * np.cos(thetas))            
         
         # based on the how the robot has moved (calculated from its odometry), we'll  move
         # all of the particles correspondingly
