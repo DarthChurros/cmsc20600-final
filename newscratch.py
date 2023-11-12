@@ -73,7 +73,7 @@ def demo_list_piecewise():
     prevT = time.time()
     t_var = s.Symbol("t")
     a_var = s.Symbol("a")
-    num_segments = 100
+    num_segments = 1000
     x_func = s.Piecewise(*[(i * t_var + i + a_var, t_var <= i + 1) for i in range(num_segments)])
     nextT = time.time()
     print("create piece_wise: ", nextT - prevT)
@@ -106,10 +106,10 @@ def demo_list_piecewise():
     
     
     np_x = lambda x : np.piecewise(x, [x <= i + 1 for i in range(num_segments)], [lambda x : i * x + i for i in range(num_segments)])
-    prevT = nextT
     xp_curr_lam = s.lambdify(t_var, xp_curr)
     from scipy.optimize import minimize_scalar
-    result = minimize_scalar(np_x, bounds=(-1000, 1000), method='bounded')
+    prevT = time.time()
+    result = minimize_scalar(xp_curr_lam, bounds=(-1000, 1000), method='bounded')
     t = result.x
     nextT = time.time()
     print("minimize_sclalar: ", nextT - prevT)
