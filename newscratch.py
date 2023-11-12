@@ -143,7 +143,6 @@ def scipy_interpolate():
     ax.plot(x, y, 'ro')
     ax.plot(new_points[0], new_points[1], 'r-')
     # ax.plot(der_points[0], der_points[1], 'b-')
-    plt.show()
     nextT = time.time()
     print("plot: ", nextT - prevT)
     
@@ -152,21 +151,31 @@ def scipy_interpolate():
         x, y = point
         def objective(t):
             curve_point = splev(t, tck)
-            return np.sqrt((x - curve_point[0])**2 + (y - curve_point[1])**2)
-        result = scipy.optimize.minimize(objective, x0=0.5, bounds=[(0, 1)])
-        return result.x[0]
+            dist = np.sqrt((x - curve_point[0])**2 + (y - curve_point[1])**2)
+            # print("curve_t", t, curve_point, dist)
+            return dist
+
+        result = scipy.optimize.minimize_scalar(objective, bounds=((0.5, 1)))
+        return result.x
 
     # Given point (x, y)
-    given_point = (0.5, 0)
+    given_point = (0.8, -0.5)
 
+    prevT = time.time()
     # Find the closest point on the curve to the given point
     closest_point_t = distance_to_curve(given_point, tck)
 
     # Evaluate the B-spline curve at the closest point parameter
-    closest_point_on_curve = np.array(splev(closest_point_t, tck))
+    closest_point_on_curve = splev(closest_point_t, tck)
+    nextT = time.time()
+    print("minimize: ", nextT - prevT)
 
     print("Given Point:", given_point)
     print("Closest Point on Curve:", closest_point_on_curve)
+    # ax.plot(splev(0.5, tck)[0], splev(0.5, tck)[1], 'go')
+    ax.plot(closest_point_on_curve[0], closest_point_on_curve[1], 'go')
+    ax.plot(given_point[0], given_point[1], 'bo')
+    plt.show()
             
 if __name__=="__main__":    
 
