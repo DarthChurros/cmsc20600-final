@@ -117,10 +117,40 @@ def demo_list_piecewise():
 
     x_func = s.Piecewise((0.20 * t_var + 0.8, t_var <= 1), (0.45 * t_var + 0.55, t_var <= 2), (-0.12 * t_var + 1.69, t_var <= 3), (1.33, True))
 
+def scipy_interpolate():
+    import numpy as np
+    prevT = time.time()
+    phi = np.linspace(0, 2.*np.pi, 80)
+    r = 0.5 + np.cos(phi)         # polar coords
+    x, y = r * np.cos(phi), r * np.sin(phi)    # convert to cartesian
+    nextT = time.time()
+    print("creation: ", nextT - prevT)
+
+    from scipy.interpolate import splprep, splev
+    prevT = nextT
+    tck, u = splprep([x, y], s=0)
+    new_points = splev(u, tck)
+    nextT = time.time()
+    print("splev: ", nextT - prevT)
+    
+    der_points = splev(u, tck, der=1)
+    print("tck:\n", )
+    
+    import matplotlib.pyplot as plt
+    prevT = nextT
+    fig, ax = plt.subplots()
+    ax.plot(x, y, 'ro')
+    ax.plot(new_points[0], new_points[1], 'r-')
+    ax.plot(der_points[0], der_points[1], 'b-')
+    plt.show()
+    nextT = time.time()
+    print("plot: ", nextT - prevT)
+    
 if __name__=="__main__":    
 
     # demo_sympy()
-    demo_list_piecewise()
+    # demo_list_piecewise()
+    scipy_interpolate()
     exit(0)
     
     
