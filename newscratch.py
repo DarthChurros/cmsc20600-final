@@ -68,11 +68,32 @@ def demo_sympy():
     print(end - start)
     start = end
     
+def demo_list_piecewise():
+    import sympy as s
+    prevT = time.time()
+    t_var = s.Symbol("t")
+    num_segments = 1000
+    x_func = s.Piecewise(*[(i * t_var + i, t_var <= i + 1) for i in range(num_segments)])
+    nextT = time.time()
+    print("create piece_wise: ", nextT - prevT)
+    
+    prevT = nextT
+    x_lam = s.lambdify(t_var, x_func, "numpy")
+    nextT = time.time()
+    print("lambdify: ", nextT - prevT)
+    prevT = nextT
+    for i in range(num_segments):
+        t = x_lam(i)
+    nextT = time.time()
+    print("eval: ", nextT - prevT)
+    print(x_func)
 
+    x_func = s.Piecewise((0.20 * t_var + 0.8, t_var <= 1), (0.45 * t_var + 0.55, t_var <= 2), (-0.12 * t_var + 1.69, t_var <= 3), (1.33, True))
 
 if __name__=="__main__":    
 
-    demo_sympy()
+    # demo_sympy()
+    demo_list_piecewise()
     exit(0)
     
     
