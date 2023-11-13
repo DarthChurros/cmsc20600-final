@@ -195,6 +195,8 @@ def visualize_curve(self):
     
     
 # initialize the estimated robot pose
+""" These must be defined outside of a class due to the GLI lock. Yes, I tried 
+putting them in the class; it annihilates concurrency."""
 robot_estimate = Pose()
 robot_estimate_set = False
 robot_estimate_updated = False
@@ -559,7 +561,6 @@ class ParticleFilter:
             with robot_estimate_cv:
                 robot_estimate_set = False
                 robot_estimate_updated = False
-                robot_estimate_cv.notify_all()
 
 
 
