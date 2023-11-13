@@ -226,7 +226,7 @@ class ParticleFilter:
 
         print("HERE")
         # load closestMap array
-        self.closestMap = np.load("computeMap.npy") 
+        self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
         
         # our addition:
         if (enable_closestMap_viz_demo):
@@ -838,6 +838,36 @@ class ParticleFilter:
             poses = self.poses
             weights = self.weights
         
+        # reorient "ranges" vectors to particle yaw...
+        trans_dxs = ranges * np.cos(lidar_angles + yaws[:, None]) + poses[0][:, None]
+        trans_dys = ranges * np.sin(lidar_angles + yaws[:, None]) + poses[1][:, None]
+        
+        norm_xs = ((trans_dxs - pos_x)/map_res).astype(np.int64, copy=False)
+        norm_ys = ((trans_dys - pos_y)/map_res).astype(np.int64, copy=False)
+        
+        # closest obstacle distances; initialized to out-of-bound penalty
+        # (until proven to be "in_bound", assume all "ranges" are out-of-bound)
+        dists = np.zeros(shape=(num_particles, num_angles)) + oob_penalty
+        
+        # boolean mask indicating all in-bound range indices
+        in_bound = (norm_xs >= 0) & (norm_xs < width) & (norm_ys >= 0) & (norm_ys < height)
+        
+        # inititalize only in-bound closest map distances
+        dists[in_bound] = self.closestMap[norm_xs[in_bound], norm_ys[in_bound]]
+        zr_zm = 0
+        if z_max != 0:
+            # set zr_zm IFF z_max is nonzero
+            zr_zm = z_random/z_max
+        
+        # compute likelihood probabilities of each distance
+        prob_ds = np.exp(-(dists**2)/(2 * (sigma_hit**2))) / (sigma_hit * np.sqrt(2 * np.pi))
+        
+        # set particle weight with product of probabilities
+        weights[:] = np.prod(preserve_factor * z_hit * prob_ds + zr_zm, axis=1)
+        return
+    
+    
+    
         
         for i in range(num_particles):
             # yaw of ith particle
@@ -866,12 +896,9 @@ class ParticleFilter:
             # boolean mask indicating all in-bound range indices
             in_bound = (norm_xs >= 0) & (norm_xs < width) & (norm_ys >= 0) & (norm_ys < height)
             # inititalize only in-bound closest map distances
-            dists = self.closestMap[norm_xs[in_bound], norm_ys[in_bound]]
+            dists[in_bound] = self.closestMap[norm_xs[in_bound], norm_ys[in_bound]]
+            assert(len(dists) == num_angles)
             
-            zr_zm = 0
-            if z_max != 0:
-                # set zr_zm IFF z_max is nonzero
-                zr_zm = z_random/z_max
             
             # compute likelihood probabilities of each distance
             prob_ds = np.exp(-pow(dists,2)/(2 * pow(sigma_hit,2))) / (sigma_hit * np.sqrt(2 * np.pi))
@@ -930,12 +957,12 @@ class ParticleFilter:
         dys = dy_noise + dy_raw
         dyaws = dyaw_noise + dyaw_raw
         
+        # update particle positions by corresponding (transformed) deltas
         thetas = self.yaws - old_yaw
         
-        # update particle positions by corresponding (transformed) deltas
         self.poses[0, :] += (dxs * np.cos(thetas) - dys * np.sin(thetas))
-        self.poses[1, :] += (dxs * np.sin(thetas) + dys * np.cos(thetas))  
-                  
+        self.poses[1, :] += (dxs * np.sin(thetas) + dys * np.cos(thetas))            
+        
         # update particle yaws by corresponding deltas (modulo to wrap around)
         self.yaws = (self.yaws + dyaws) % (2 * np.pi)
         
