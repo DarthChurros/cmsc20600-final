@@ -309,6 +309,9 @@ class ParticleFilter:
         self.tf_listener = TransformListener()
         self.tf_broadcaster = TransformBroadcaster()
 
+        # initialize in-bound indices
+        self.ib_indices = None
+        self.init_ib_indices()
 
         # intialize the particle cloud
         self.initialize_particle_cloud()
@@ -368,6 +371,24 @@ class ParticleFilter:
             # update weight of particle
             pcle.w = self.weights[i]
             
+    def init_ib_indices(self):
+        ''' 
+        Initialize array of indices that are:
+        1) in the maze
+        2) unblocked
+        '''
+        while (not self.map_set):
+            # wait until the map is set, you idiot
+            time.sleep(0.1)
+        
+        occup_arr = np.array(self.map.data)
+        w = self.map.info.width
+        h = self.map.info.height
+        occup_arr = occup_arr.reshape(w, -h).T
+        ib = (occup_arr <= 10) & (occup_arr != -1)
+        self.ib_indices = np.array(np.where(ib))
+        self.num_ib_indices = self.ib_indices.shape[1]
+            
     def scatter_particle_cloud(self):
         # extract map info
         w = self.map.info.width
@@ -386,30 +407,9 @@ class ParticleFilter:
         self.find_yaws[:] = np.random.uniform(low=0, high=2 * np.pi, size=self.find_num_particles)
         self.find_weights[:] = np.ones(shape=self.find_num_particles)
         
-        xs = np.random.randint(low=0, high=w, size=self.find_num_particles, dtype=np.int64)
-        ys = np.random.randint(low=0, high=h, size=self.find_num_particles, dtype=np.int64)
-        
-        occup_arr = np.array(self.map.data)
-        occupancy = occup_arr[ys * w + xs]
-        indices = np.arange(self.find_num_particles, dtype=np.int64)
-        oob = (occupancy > 10) | (occupancy == -1)
-        
-        # for i in range(self.find_num_particles):
-        while np.any(oob):
-            # re-generate (x,y) until it no longer:
-            # 1) occupies an obstacle, OR
-            # 2) is out of bounds
-            
-            oob_indices = indices[oob]
-            num_oob = len(oob_indices)
-            
-            xs[oob_indices] = np.random.randint(low=0, high=w, size=num_oob, dtype=np.int64)
-            ys[oob_indices] = np.random.randint(low=0, high=h, size=num_oob, dtype=np.int64)
-            
-            occupancy[oob_indices] = occup_arr[ys[oob_indices] * w + xs[oob_indices]]
-            oob[oob_indices] = (occupancy[oob_indices] > 10) | (occupancy[oob_indices] == -1)
-            
-            # print("num_oob: ", num_oob)
+        coords = self.ib_indices[:, np.random.randint(low=0, high=self.num_ib_indices, size=self.find_num_particles)]
+        xs = coords[0]
+        ys = coords[1]
         
         # convert (x,y) to map coordinates
         adj_xs = xs * map_res + map_origin_x
@@ -427,9 +427,7 @@ class ParticleFilter:
         Updates are propagated to BOTH particle_cloud and internal state arrays.
         '''
         
-        while (not self.map_set):
-            # wait until the map is set, you idiot
-            time.sleep(0.1)
+        assert (self.map_set) # should be set during or before self.init_ib_indices
             
         self.scatter_particle_cloud()
         
