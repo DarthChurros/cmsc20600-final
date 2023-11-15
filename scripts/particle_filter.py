@@ -810,44 +810,44 @@ class ParticleFilter:
 
                # This is where the main logic of the particle filter is carried out
 
-                # pos_x = self.map.info.origin.position.x
-                # pos_y = self.map.info.origin.position.y
-                # map_res = self.map.info.resolution
-                # tempx = int((self.robot_estimate.position.x - pos_x)/map_res)
-                # tempy = int((self.robot_estimate.position.y - pos_y)/map_res)
+                pos_x = self.map.info.origin.position.x
+                pos_y = self.map.info.origin.position.y
+                map_res = self.map.info.resolution
+                tempx = int((self.robot_estimate.position.x - pos_x)/map_res)
+                tempy = int((self.robot_estimate.position.y - pos_y)/map_res)
 
 
-                # self.pathFinder.update_pose((tempx,tempy))
+                self.pathFinder.update_pose((tempx,tempy))
 
-                # print("distance:",self.pathFinder.path[tempx][tempy])
+                print("distance:",self.pathFinder.path[tempx][tempy])
                 
-                # next_node = self.pathFinder.naive_path_finder(0.05/map_res)
+                next_node = self.pathFinder.naive_path_finder(0.05/map_res)
                 
 
-                # print(next_node)
-                # next_node = ((next_node[0] * map_res), (next_node[1] * map_res))
-                # print(next_node)
-                # print(tempx,tempy)
+                print(next_node)
+                next_node = ((next_node[0] * map_res), (next_node[1] * map_res))
+                print(next_node)
+                print(tempx,tempy)
 
-                # error = 0.25
-                # ang_vel = np.arctan2(next_node[1],next_node[0]) - get_yaw_from_pose(self.robot_estimate)
-                # lin_vel =  2*map_res * pow((1 + np.cos(ang_vel))/2,20)
-                # print("lin:", lin_vel)
-                # print("ang:", ang_vel)
-                # print("yaws:",np.arctan2(next_node[1],next_node[0])," ", get_yaw_from_pose(self.robot_estimate))
-                # if(next_node[0] == next_node[1]):
-                #     ang_vel = 0
-                #     lin_vel = -0.1
-                # self.pub_cmd_vel.publish(Twist(linear=Vector3(error * 2 * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))
+                error = 0.25
+                ang_vel = np.arctan2(next_node[1],next_node[0]) - get_yaw_from_pose(self.robot_estimate)
+                lin_vel =  2*map_res * pow((1 + np.cos(ang_vel))/2,20)
+                print("lin:", lin_vel)
+                print("ang:", ang_vel)
+                print("yaws:",np.arctan2(next_node[1],next_node[0])," ", get_yaw_from_pose(self.robot_estimate))
+                if(next_node[0] == next_node[1]):
+                    ang_vel = 0
+                    lin_vel = -0.1
+                self.pub_cmd_vel.publish(Twist(linear=Vector3(error * 2 * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))
 
-                # if self.pathFinder.at_destination():
-                #     self.sound_pub.publish(Sound(0))
-                #     rospy.sleep(4)
-                #     rospy.signal_shutdown("got bored")            
+                if self.pathFinder.at_destination():
+                    self.sound_pub.publish(Sound(0))
+                    rospy.sleep(4)
+                    rospy.signal_shutdown("got bored")            
 
-                start = time.time()
-                self.motion.move(self.robot_estimate)
-                print("move:", time.time()-start)         
+                # start = time.time()
+                # self.motion.move(self.robot_estimate)
+                # print("move:", time.time()-start)         
 
                 self.odom_pose_last_motion_update = self.odom_pose
                 self.first_init = False
