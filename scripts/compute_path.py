@@ -1,6 +1,7 @@
 # !/usr/bin/env python3
 
 import numpy as np
+import time
 
 
 class PathFinding:
@@ -10,6 +11,7 @@ class PathFinding:
 
         # for testing only
         # self.path = np.dstack((range(5), [0, 3, 2, -1, 0]))[0]
+        # self.path = np.dstack((np.random.uniform(5,10,100), np.random.uniform(5,10,100)))[0]
         self.path = []
 
         self.current_pose = start
@@ -19,43 +21,44 @@ class PathFinding:
     def update_pose(self, pose):
         self.current_pose = pose
 
-    def reduce_path(self, epsilon, path=None, idxs=None):
-        # assumes that self.path is a 2D numpy array [[x1, y1], [x2, y2]]
-        first_call = False
+    def reduce_path(self, epsilon):
+        assert (epsilon > 0)
+        
+        def lp(epsilon, path, idxs):
+            # assumes that self.path is a 2D numpy array [[x1, y1], [x2, y2], ...]
+            path_len = len(path)
+            assert(path_len >= 2)
 
-        if path is None:
-            path = self.path
-            first_call = True
+            # path with only two points cannot be reduced, fewer is faulty input
+            if path_len == 2:
+                return
 
-        if idxs is None:
-            idxs = np.ones(len(path), dtype=bool)
+            # determine reference line between points
+            p1, p2 = path[0], path[-1]
+            line = p2 - p1
+            line_len = np.linalg.norm(line)
 
-        # path with only two points cannot be reduced, fewer is faulty input
-        if len(path) == 2:
-            return
+            # get farthest point from line
+            dists = np.abs(np.cross(line, path - p1) / line_len)
+            idx = np.argmax(dists * idxs)
+            p = path[idx]
 
-        # determine reference line between points
-        p1, p2 = path[0], path[-1]
-        line = p2 - p1
-        line_len = np.linalg.norm(line)
+            # determine whether to keep that point or reduce the path
+            if dists[idx] > epsilon:
+                # keep
+                lp(epsilon, path[: idx + 1], idxs[: idx + 1])
+                lp(epsilon, path[idx:], idxs[idx:])
+            else:
+                # reduce segment
+                idxs[1:-1] = False
+        
+        path = self.path
+        idxs = np.ones(len(path), dtype=bool)
+        
+        lp(epsilon, path, idxs)
 
-        # get farthest point from line
-        dists = np.abs(np.cross(line, path - p1) / line_len)
-        idx = np.argmax(dists * idxs)
-        p = path[idx]
-
-        # determine whether to keep that point or reduce the path
-        if dists[idx] > epsilon:
-            # keep
-            self.reduce_path(epsilon, path[: idx + 1], idxs[: idx + 1])
-            self.reduce_path(epsilon, path[idx:], idxs[idx:])
-        else:
-            # reduce segment
-            idxs[1:-1] = False
-
-        if first_call:
-            self.path = path[idxs]
-            return self.path
+        self.path = self.path[idxs]
+        return self.path
 
     def get_next_node(self):
         if self.algorithm == "dijkstra":
@@ -135,6 +138,8 @@ class PathFinding:
             unchecked = tempUnchecked
 
 
-# if __name__ == "__main__":
-#     p = PathFinding(None, None, None)
-#     print(p.reduce_path(2))
+if __name__ == "__main__":
+    # p = PathFinding(None, None, None)
+    # start=time.time()
+    # print(p.reduce_path(2))
+    # print("reduce", time.time()-start)
