@@ -8,9 +8,9 @@ LIDAR variant: RPLIDAR-A1.
 
 import rospy
 
+from turtlebot3_msgs.msg import Sound
 from nav_msgs.msg import OccupancyGrid
-from geometry_msgs.msg import Quaternion, Point, Pose, PoseArray, PoseStamped
-from geometry_msgs.msg import Twist, Vector3
+from geometry_msgs.msg import Quaternion, Point, Pose, PoseArray, PoseStamped, Twist, Vector3
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Header, String
 
@@ -60,25 +60,72 @@ def gaussian_scalars(stdev, n):
 
 class PathFinding:
 
-    def __init__(self, map, start, destination):
+    def __init__(self, map, start, destination, bound=4):
         self.algorithm = "dijstra"
         self.map = map
         self.path = []
         self.current_pose = start
         self.destination = destination
+        self.bound = bound
 
     #sets the postition of the robot
     def update_pose(self, pose):
         self.current_pose = pose
 
+    def naive_path_finder(self, epsilon):
+        next_node = self.get_next_node()
+        nodes = []
+        distances = []
+        while(all(distances)):
+            nodes.append(next_node)
+            distances.append(True)
+            next_node = self.get_next_node(next_node)
+            if self.path[next_node[0]][next_node[1]] < self.bound:
+                break
+            elif (next_node[0] - self.current_pose[0] == 0):
+                for i in range(len(nodes)):
+                    distances[i] = abs(nodes[i][0] - next_node[0]) < epsilon
+            else:
+                slope = (next_node[1] - self.current_pose[1])/(next_node[0] - self.current_pose[0])
+                offset = (next_node[1] - (slope * next_node[0]))
+                for i in range(len(nodes)):
+                    d = lambda x : math.hypot(nodes[i][0]-x,nodes[i][1] - (slope * x) - offset)
+                    z = (nodes[i][0] + (slope * (nodes[i][1] - offset)))/(1 + pow(slope,2))
+                    distances[i] = d(z) < epsilon
+        return self.get_translation_vector(nodes[-1])
 
-    def get_next_node(self):
+    def find_nearest_non_negative(self, node=None):
+        if node is None:
+            node = self.current_pose
+
+        checked = [node]
+        unchecked = self.get_adjacent(node)
+
+        while len(unchecked) != 0:
+            tempUnchecked = []
+            for i in unchecked:
+                for j in self.get_adjacent(i):
+                    if self.path[j[0]][j[1]] == -1 and not (j in checked or j in tempUnchecked):
+                        tempUnchecked.append(j)
+                    elif elf.path[j[0]][j[1]] != -1:
+                        return j
+                checked.append(i)
+            unchecked = tempUnchecked
+            print("HER")
+        return (0,0)
+        
+
+    def get_next_node(self, node=None):
+        if node is None:
+            node = self.current_pose
+    
         if self.algorithm == "dijstra":
-            adjacent = self.get_adjacent(self.current_pose)
+            adjacent = self.get_adjacent(node)
             min = 0
             for i in range(len(adjacent)):
-                if (self.path[adjacent[i][0]][adjacent[i][1]] != -1) and (self.path[adjacent[i][0]][adjacent[i][1]] < self.path[adjacent[min][0]][adjacent[min][1]]):
+                if (self.path[adjacent[min][0]][adjacent[min][1]] == -1) or ((self.path[adjacent[i][0]][adjacent[i][1]] != -1) and (self.path[adjacent[i][0]][adjacent[i][1]] < self.path[adjacent[min][0]][adjacent[min][1]])):
                     min = i
+
             return adjacent[min]
         elif self.algorithm == "a_star":
             return None
@@ -94,13 +141,19 @@ class PathFinding:
             return
 
     #returns the vector that coresponds to the direction the robot should move in world coordinates.
-    def get_translation_vector(self):
-        if self.path[self.current_pose[0]][self.current_pose[1]] != -1:
+    def get_translation_vector(self, next_node=None):
+        if next_node is None:
             next_node = self.get_next_node()
-            translation = (- self.current_pose[0] + next_node[0], - self.current_pose[1] + next_node[1])
-            return translation
-        else:
+
+        if self.path[self.current_pose[0]][self.current_pose[1]] == -1 and self.path[next_node[0]][next_node[1]] == -1:
+            next_node = self.find_nearest_non_negative(self.current_pose) 
+
+        translation = (-self.current_pose[0] + next_node[0], - self.current_pose[1] + next_node[1])
+        if translation[0] == 0 and translation[1] == 0:
             return (0,0)
+        else:
+            hy = math.hypot(translation[0],translation[1])
+            return (translation[0]/hy,translation[1]/hy)
     
     def get_adjacent(self, node):
         borders = [(-1,0),(0,1),(1,0),(0,-1)]
@@ -132,6 +185,10 @@ class PathFinding:
                 checked.append(i)
             unchecked = tempUnchecked
     
+    def at_destination(self):
+        return self.path[self.current_pose[0]][self.current_pose[1]] < self.bound and self.path[self.current_pose[0]][self.current_pose[1]] != -1
+     
+
 
 class Particle:
 
@@ -222,11 +279,16 @@ class ParticleFilter:
         print("HERE")
         # load closestMap array
         self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
+        self.aStarPathMap = np.vectorize(lambda x: (1 if x > 0.155 and x < 0.6 else 0))(self.closestMap)
+        
+        self.pathFinder = PathFinding(self.aStarPathMap,(247,275),(218,216))
+        self.pathFinder.compute_path()
         
         # our addition:
         if (enable_closestMap_viz_demo):
             # demo_visualize_closestMap(self.closestMap) # input the whole cloestMap
             demo_visualize_closestMap(self.closestMap[190:300 + 1, 160:300 + 1])
+            # demo_visualize_closestMap(np.array(self.pathFinder.path))
 
         # the number of particles used in the particle filter
         self.find_num_particles = 10**5 # num_particles for searching/convergence
@@ -291,8 +353,12 @@ class ParticleFilter:
         # publish the current particle cloud
         self.particles_pub = rospy.Publisher("particle_cloud", PoseArray, queue_size=10)
 
+        self.sound_pub = rospy.Publisher("/sound",Sound,queue_size=10)
+
         # publish the estimated robot pose
         self.robot_estimate_pub = rospy.Publisher("estimated_robot_pose", PoseStamped, queue_size=10)
+
+        self.pub_cmd_vel = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
 
         # subscribe to the map server
         rospy.Subscriber(self.map_topic, OccupancyGrid, self.get_map)
@@ -323,6 +389,7 @@ class ParticleFilter:
         self.initialize_particle_cloud()
 
         self.initialized = True
+        self.first_init = False
 
 
 
@@ -686,7 +753,8 @@ class ParticleFilter:
             if (np.abs(curr_x - old_x) > self.lin_mvmt_threshold or 
                 np.abs(curr_y - old_y) > self.lin_mvmt_threshold or
                 np.abs(curr_yaw - old_yaw) > self.ang_mvmt_threshold or
-                self.first_pf_cycle):
+                self.first_pf_cycle or 
+                True):
                 self.first_pf_cycle = False
 
                 # This is where the main logic of the particle filter is carried out
@@ -737,14 +805,52 @@ class ParticleFilter:
                     
                     self.finding = False
 
-                # diffs = np.array(starts) - np.array(ends)
-                # print("diffs", diffs)
+
+
+
+               # This is where the main logic of the particle filter is carried out
+
+                # pos_x = self.map.info.origin.position.x
+                # pos_y = self.map.info.origin.position.y
+                # map_res = self.map.info.resolution
+                # tempx = int((self.robot_estimate.position.x - pos_x)/map_res)
+                # tempy = int((self.robot_estimate.position.y - pos_y)/map_res)
+
+
+                # self.pathFinder.update_pose((tempx,tempy))
+
+                # print("distance:",self.pathFinder.path[tempx][tempy])
+                
+                # next_node = self.pathFinder.naive_path_finder(0.05/map_res)
+                
+
+                # print(next_node)
+                # next_node = ((next_node[0] * map_res), (next_node[1] * map_res))
+                # print(next_node)
+                # print(tempx,tempy)
+
+                # error = 0.25
+                # ang_vel = np.arctan2(next_node[1],next_node[0]) - get_yaw_from_pose(self.robot_estimate)
+                # lin_vel =  2*map_res * pow((1 + np.cos(ang_vel))/2,20)
+                # print("lin:", lin_vel)
+                # print("ang:", ang_vel)
+                # print("yaws:",np.arctan2(next_node[1],next_node[0])," ", get_yaw_from_pose(self.robot_estimate))
+                # if(next_node[0] == next_node[1]):
+                #     ang_vel = 0
+                #     lin_vel = -0.1
+                # self.pub_cmd_vel.publish(Twist(linear=Vector3(error * 2 * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))
+
+                # if self.pathFinder.at_destination():
+                #     self.sound_pub.publish(Sound(0))
+                #     rospy.sleep(4)
+                #     rospy.signal_shutdown("got bored")            
 
                 start = time.time()
                 self.motion.move(self.robot_estimate)
                 print("move:", time.time()-start)         
 
                 self.odom_pose_last_motion_update = self.odom_pose
+                self.first_init = False
 
 
 
@@ -809,6 +915,16 @@ class ParticleFilter:
             
             # convert from lidar angle indices to angles
             lidar_angles = angle_indices * (2 * np.pi) / 360
+        
+        
+        # angle_incr = 1 if self.first_init else 90 # 3 increment ~ 0.9 degrees
+        # angle_indices = np.arange(0, 360, angle_incr)
+        # num_angles = len(angle_indices)
+        
+        # # convert from lidar angle indices to angles
+        # lidar_angles = angle_indices * (2 * np.pi) / 360
+        
+        
         
         if enable_measure_model_demo:
             # dummy ranges value for demo purposes
