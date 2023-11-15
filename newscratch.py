@@ -177,7 +177,36 @@ def scipy_interpolate():
     ax.plot(given_point[0], given_point[1], 'bo')
     plt.show()
             
+
+import threading
+import time
+
+nem = 3
+nrum = int(100000/nem)
+gr= np.array([0] * nrum)
+def do_nothing(n):
+    global gr
+    sumr = 0
+    for i in range(n):
+        sumr += gr[i]
+    return sumr
+            
 if __name__=="__main__":    
+    
+    ts=[]
+    t=time.time()
+    # do_nothing(1000)
+    for i in range(nem):
+        thread = threading.Thread(target=do_nothing, args=(nrum,))
+        ts.append(thread)
+        thread.start()
+    for x in ts:
+        print(ts)
+        x.join()
+    
+    print(gr)
+    print(time.time()-t)
+    exit(0)
 
     # demo_sympy()
     # demo_list_piecewise()
