@@ -138,9 +138,9 @@ class Motion:
             # print("time: ", time.time() - start)
             
             # lin_error = absolute_cutoff(dist + 0.4, limit=1) * (abs(ang_error) / np.pi - 1) ** 12
-            lin_error = (abs(ang_error) / np.pi - 1) ** 16
+            lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 16
         
-        self.pub_cmd_vel.publish(Twist(linear=Vector3(lin_error,0,0),angular=Vector3(0,0,ang_error)))
+        self.pub_cmd_vel.publish(Twist(linear=Vector3(0.5 * lin_error,0,0),angular=Vector3(0,0,0.5 * ang_error)))
         
 
     
