@@ -30,6 +30,8 @@ import time
 import os
 import copy
 
+from motion import Motion
+
 # demo toggles
 enable_motion_demo = False
 enable_closestMap_viz_demo = False
@@ -194,13 +196,6 @@ def visualize_curve(self):
     self.particles_pub.publish(particle_cloud_pose_array)    
     
     
-# initialize the estimated robot pose
-""" These must be defined outside of a class due to the GLI lock. Yes, I tried 
-putting them in the class; it annihilates concurrency."""
-robot_estimate = Pose()
-robot_estimate_set = False
-robot_estimate_updated = False
-robot_estimate_cv = threading.Condition()
 
 class ParticleFilter:
 
@@ -312,6 +307,17 @@ class ParticleFilter:
         # initialize in-bound indices
         self.ib_indices = None
         self.init_ib_indices()
+
+        self.robot_estimate = Pose()
+        self.robot_estimate_set = False
+        self.robot_estimate_updated = False
+        self.robot_estimate_cv = threading.Condition()
+
+        # the motion handler
+        self.motion = Motion(approach="parametric", init_info=(t_var, x_func, y_func))
+        
+        # initialize shutdown callback
+        rospy.on_shutdown(lambda : self.halt())
 
         # intialize the particle cloud
         self.initialize_particle_cloud()
@@ -547,7 +553,7 @@ class ParticleFilter:
     def publish_estimated_robot_pose(self):
 
         robot_pose_estimate_stamped = PoseStamped()
-        robot_pose_estimate_stamped.pose = robot_estimate
+        robot_pose_estimate_stamped.pose = self.robot_estimate
         robot_pose_estimate_stamped.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
         self.robot_estimate_pub.publish(robot_pose_estimate_stamped)
         
@@ -556,9 +562,9 @@ class ParticleFilter:
         with self.finding_lock:
             self.finding = True
             self.first_pf_cycle = True
-            with robot_estimate_cv:
-                robot_estimate_set = False
-                robot_estimate_updated = False
+            with self.robot_estimate_cv:
+                self.robot_estimate_set = False
+                self.robot_estimate_updated = False
 
 
 
@@ -734,6 +740,10 @@ class ParticleFilter:
                 # diffs = np.array(starts) - np.array(ends)
                 # print("diffs", diffs)
 
+                start = time.time()
+                self.motion.move(self.robot_estimate)
+                print("move:", time.time()-start)         
+
                 self.odom_pose_last_motion_update = self.odom_pose
 
 
@@ -747,9 +757,9 @@ class ParticleFilter:
         av_yaw = np.average(self.yaws, weights=self.weights)
         
         # Update current robot pose to computed averages
-        pose = robot_estimate
+        pose = self.robot_estimate
         # pose.position = Point()
-        with robot_estimate_cv:
+        with self.robot_estimate_cv:
             pose.position.x = av_x
             pose.position.y = av_y
             pose.position.z = 0
@@ -759,12 +769,10 @@ class ParticleFilter:
             pose.orientation.y = quat[1]
             pose.orientation.z = quat[2]
             pose.orientation.w = quat[3]
-            global robot_estimate_set
-            global robot_estimate_updated
             
-            robot_estimate_set = True
-            robot_estimate_updated = True
-            robot_estimate_cv.notify_all()
+            self.robot_estimate_set = True
+            self.robot_estimate_updated = True
+            self.robot_estimate_cv.notify_all()
         return
 
 
@@ -943,8 +951,8 @@ class ParticleFilter:
         
         # standard deviations for noise
         dist = np.hypot(dx_raw, dy_raw)
-        angle_increment = 30 * np.pi / 180 * min(abs(dyaw_raw) / 0.75, 1)
-        linear_increment = 0.5 * min(dist / 0.225, 1)
+        angle_increment = 6 * np.pi / 180 * min(abs(dyaw_raw) / 0.75, 1)
+        linear_increment = 0.1 * min(dist / 0.225, 1)
         
         # generate random tapes for movement noise
         # e.g. dx_noise[i] == x translation noise for particle i
@@ -975,16 +983,12 @@ class ParticleFilter:
         # TODO
 
 
-def halt(publisher):
-    '''Halts the robot. i.e. publishes a 0 Twist to cmd_vel'''
-    publisher.publish(Twist(linear=Vector3(0,0,0),angular=Vector3(0,0,0)))
-    global robot_estimate_updated
-    global robot_estimate_set
-    global robot_estimate_cv
-    with robot_estimate_cv:
-        robot_estimate_set = True
-        robot_estimate_updated = True
-        robot_estimate_cv.notify_all()
+    def halt(self):
+        self.motion.halt()
+        with self.robot_estimate_cv:
+            self.robot_estimate_set = True
+            self.robot_estimate_updated = True
+            self.robot_estimate_cv.notify_all()
     
 
 def wrapto_pi(angle):
@@ -1007,9 +1011,26 @@ if __name__=="__main__":
     pf = ParticleFilter()
     print("HERE")
     
+    
+    
+    rospy.spin()
+    exit(0)
+    # !! PROCEED NO FURTHER !!
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     # global robot_estimate_set
-    # global robot_estimate_updated
-    # global robot_estimate_cv
+    # global self.robot_estimate_updated
+    # global self.robot_estimate_cv
     
     curr_t = 0
     pub_cmd_vel = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
@@ -1025,17 +1046,18 @@ if __name__=="__main__":
     #     pass
 
     while not rospy.is_shutdown():
-        with robot_estimate_cv:
-            while not robot_estimate_updated:
-                robot_estimate_cv.wait()
+        with self.robot_estimate_cv:
+            while not self.robot_estimate_updated:
+                self.robot_estimate_cv.wait()
             print("updated!")
             curr_x = robot_estimate.position.x
             curr_y = robot_estimate.position.y
             curr_yaw = get_yaw_from_pose(robot_estimate)
-            robot_estimate_updated = False
+            self.robot_estimate_updated = False
         if rospy.is_shutdown():
             break
             
+        start = time.time()
         is_approx = True
         
         start=time.time()
@@ -1088,6 +1110,7 @@ if __name__=="__main__":
         # lin_error = absolute_cutoff(dist + 0.4, limit=1) * (abs(ang_error) / np.pi - 1) ** 12
         lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 16
         pub_cmd_vel.publish(Twist(linear=Vector3(0.5*lin_error,0,0),angular=Vector3(0,0,0.5*ang_error)))
+        print("MOVE: ", time.time()-start)
     rospy.spin()
 
 
