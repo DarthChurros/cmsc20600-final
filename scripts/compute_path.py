@@ -2,6 +2,7 @@
 
 import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 
 class PathFinding:
@@ -12,7 +13,10 @@ class PathFinding:
         # for testing only
         # self.path = np.dstack((range(5), [0, 3, 2, -1, 0]))[0]
         # self.path = np.dstack((np.random.uniform(5,10,100), np.random.uniform(5,10,100)))[0]
-        self.path = []
+        self.path = np.dstack([np.arange(0, 50, 0.1), 16*np.sin(np.arange(0, 50, 0.1))])[0]
+        
+        print(self.path)
+        # self.path = []
 
         self.current_pose = start
         self.destination = destination
@@ -139,7 +143,11 @@ class PathFinding:
 
 
 if __name__ == "__main__":
-    # p = PathFinding(None, None, None)
-    # start=time.time()
-    # print(p.reduce_path(2))
-    # print("reduce", time.time()-start)
+    fig, ax = plt.subplots()
+    p = PathFinding(None, None, None)
+    ax.plot(p.path[:, 0], p.path[:, 1], 'r-')
+    start=time.time()
+    print(p.reduce_path(8))
+    print("reduce", time.time()-start)
+    ax.plot(p.path[:, 0], p.path[:, 1], 'g-')
+    plt.show()
