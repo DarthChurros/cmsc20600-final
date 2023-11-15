@@ -24,6 +24,7 @@ import math
 
 from random import randint, random
 
+from compute_path import PathFinding
 
 import time
 import os
@@ -54,83 +55,6 @@ def gaussian_scalars(stdev, n):
     '''
     return np.random.normal(loc=0, scale=stdev, size=n)
 
-
-class PathFinding:
-
-    def __init__(self, map, start, destination):
-        self.algorithm = "dijstra"
-        self.map = map
-        self.path = []
-        self.current_pose = start
-        self.destination = destination
-
-    #sets the postition of the robot
-    def update_pose(self, pose):
-        self.current_pose = pose
-
-
-    def get_next_node(self):
-        if self.algorithm == "dijstra":
-            adjacent = self.get_adjacent(self.current_pose)
-            min = 0
-            for i in range(len(adjacent)):
-                if (self.path[adjacent[min][0]][adjacent[min][1]] == -1) or (self.path[adjacent[i][0]][adjacent[i][1]] != -1) and (self.path[adjacent[i][0]][adjacent[i][1]] < self.path[adjacent[min][0]][adjacent[min][1]]):
-                    min = i
-            return adjacent[min]
-        elif self.algorithm == "a_star":
-            return None
-        else:
-            return None       
-
-    def compute_path(self):
-        if self.algorithm == "dijstra":
-            self.computer_path_dijstra()
-        elif self.algorithm == "a_star":
-            self.compute_path_a_star()
-        else:
-            return
-
-    #returns the vector that coresponds to the direction the robot should move in world coordinates.
-    def get_translation_vector(self):
-        next_node = self.get_next_node()
-        if self.path[self.current_pose[0]][self.current_pose[1]] != -1 and self.path[next_node[0]][next_node[1]] != -1:
-            
-            translation = (-self.current_pose[0] + next_node[0], - self.current_pose[1] + next_node[1])
-            return translation
-        else:
-            return (0,0)
-    
-    def get_adjacent(self, node):
-        borders = [(-1,0),(0,1),(1,0),(0,-1)]
-        adjacent_nodes = []
-        for i in borders:
-            if (node[0] + i[0] > -1) and (node[0] + i[0] < len(self.map)) and (node[1] + i[1] > -1) and (node[1] + i[1] < len(self.map[0])):
-                adjacent_nodes.append((node[0] + i[0],node[1] + i[1]))
-        return adjacent_nodes
-
-    def compute_path_a_star(self):
-        self.algorithm = "a_star"
-        return
-    
-
-    def computer_path_dijstra(self):
-        self.algorithm = "dijstra"
-        checked = [self.destination]
-        unchecked = self.get_adjacent(self.destination)
-        self.path = [[-1]*len(self.map[0]) for i in range(len(self.map))]
-        for i in unchecked:
-             self.path[i[0]][i[1]] = 1
-        while len(unchecked) != 0:
-            tempUnchecked = []
-            for i in unchecked:
-                for j in self.get_adjacent(i):
-                    if self.path[j[0]][j[1]] == -1 and self.map[j[0]][j[1]] == 1:
-                        tempUnchecked.append(j)
-                        self.path[j[0]][j[1]] = self.path[i[0]][i[1]] + 1
-                checked.append(i)
-            unchecked = tempUnchecked
-    
-
 class Particle:
 
     def __init__(self, pose, w):
@@ -154,12 +78,6 @@ def demo_visualize_closestMap(closestMap):
     plt.imshow(closestMap, cmap='hot', interpolation='nearest')
     plt.show()
     exit(0)
-        
-    
-    
-    
-    
-
 
 class ParticleFilter:
 
