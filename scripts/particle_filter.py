@@ -34,7 +34,7 @@ from motion import Motion
 
 # demo toggles
 enable_motion_demo = False
-enable_closestMap_viz_demo = False
+enable_closestMap_viz_demo = True
 
 def get_yaw_from_pose(p):
     """ A helper function that takes in a Pose object (geometry_msgs) and returns yaw"""
@@ -60,8 +60,8 @@ def gaussian_scalars(stdev, n):
 
 class PathFinding:
 
-    def __init__(self, map, start, destination, bound=4):
-        self.algorithm = "dijstra"
+    def __init__(self, map, start, destination, algorithm="dijstra", bound=4):
+        self.algorithm = algorithm
         self.map = map
         self.path = []
         self.current_pose = start
@@ -111,7 +111,6 @@ class PathFinding:
                         return j
                 checked.append(i)
             unchecked = tempUnchecked
-            print("HER")
         return (0,0)
         
 
@@ -131,6 +130,17 @@ class PathFinding:
             return None
         else:
             return None       
+
+    def get_full_path(self, node=None):
+        if node is None:
+            node = self.current_pose
+
+        path = [node]
+         while (self.path[current_pose[0]][current_pose[1]] != 0):
+            current_pose = self.get_next_node(current_pose)
+            path.append(node)
+            
+        return path
 
     def compute_path(self):
         if self.algorithm == "dijstra":
@@ -164,8 +174,18 @@ class PathFinding:
         return adjacent_nodes
 
     def compute_path_a_star(self):
+        self.algorithm = "dijstra"
+        self.compute_path()
+        temp_path = [[-1]*len(self.map[0]) for i in range(len(self.map))]
+        current_pose = self.current_pose
+
+        while (self.path[current_pose[0]][current_pose[1]] != 0):
+            temp_path[current_pose[0]][current_pose[1]] = self.path[current_pose[0]][current_pose[1]]
+            current_pose = self.get_next_node(current_pose)
+
+        self.path = temp_path
         self.algorithm = "a_star"
-        return
+
     
 
     def computer_path_dijstra(self):
@@ -173,6 +193,7 @@ class PathFinding:
         checked = [self.destination]
         unchecked = self.get_adjacent(self.destination)
         self.path = [[-1]*len(self.map[0]) for i in range(len(self.map))]
+        self.path[self.destination[0]][self.destination[1]] = 0
         for i in unchecked:
              self.path[i[0]][i[1]] = 1
         while len(unchecked) != 0:
@@ -205,11 +226,7 @@ def demo_visualize_closestMap(closestMap):
     '''
     Demo: plots the closestMap as a heat map in matplotlib and exits.
     '''
-    
-    import sys
     import matplotlib.pyplot as plt
-    cutoff = 0.6
-    closestMap[closestMap >= cutoff] = cutoff
     plt.imshow(closestMap, cmap='hot', interpolation='nearest')
     plt.show()
     exit(0)
@@ -281,13 +298,13 @@ class ParticleFilter:
         self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
         self.aStarPathMap = np.vectorize(lambda x: (1 if x > 0.155 and x < 0.6 else 0))(self.closestMap)
         
-        self.pathFinder = PathFinding(self.aStarPathMap,(247,275),(218,216))
+        self.pathFinder = PathFinding(self.aStarPathMap,(274,248),(218,216) ,algorithm="a_star")
         self.pathFinder.compute_path()
-        
+        print("THEREs")
         # our addition:
         if (enable_closestMap_viz_demo):
             # demo_visualize_closestMap(self.closestMap) # input the whole cloestMap
-            demo_visualize_closestMap(self.closestMap[190:300 + 1, 160:300 + 1])
+            demo_visualize_closestMap(np.array(self.pathFinder.map))
             # demo_visualize_closestMap(np.array(self.pathFinder.path))
 
         # the number of particles used in the particle filter
@@ -808,37 +825,7 @@ class ParticleFilter:
 
 
 
-               # This is where the main logic of the particle filter is carried out
 
-                pos_x = self.map.info.origin.position.x
-                pos_y = self.map.info.origin.position.y
-                map_res = self.map.info.resolution
-                tempx = int((self.robot_estimate.position.x - pos_x)/map_res)
-                tempy = int((self.robot_estimate.position.y - pos_y)/map_res)
-
-
-                self.pathFinder.update_pose((tempx,tempy))
-
-                print("distance:",self.pathFinder.path[tempx][tempy])
-                
-                next_node = self.pathFinder.naive_path_finder(0.05/map_res)
-                
-
-                print(next_node)
-                next_node = ((next_node[0] * map_res), (next_node[1] * map_res))
-                print(next_node)
-                print(tempx,tempy)
-
-                error = 0.25
-                ang_vel = np.arctan2(next_node[1],next_node[0]) - get_yaw_from_pose(self.robot_estimate)
-                lin_vel =  2*map_res * pow((1 + np.cos(ang_vel))/2,20)
-                print("lin:", lin_vel)
-                print("ang:", ang_vel)
-                print("yaws:",np.arctan2(next_node[1],next_node[0])," ", get_yaw_from_pose(self.robot_estimate))
-                if(next_node[0] == next_node[1]):
-                    ang_vel = 0
-                    lin_vel = -0.1
-                self.pub_cmd_vel.publish(Twist(linear=Vector3(error * 8 * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))
 
                 if self.pathFinder.at_destination():
                     self.sound_pub.publish(Sound(0))

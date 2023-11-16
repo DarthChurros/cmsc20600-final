@@ -143,4 +143,31 @@ class Motion:
         self.pub_cmd_vel.publish(Twist(linear=Vector3(0.5 * lin_error,0,0),angular=Vector3(0,0,0.5 * ang_error)))
         
 
+    def move_naive(self, curr_pose):
+       # This is where the main logic of the particle filter is carried out
+
+        pos_x = self.map.info.origin.position.x
+        pos_y = self.map.info.origin.position.y
+        map_res = self.map.info.resolution
+        tempx = int((curr_pose.position.x - pos_x)/map_res)
+        tempy = int((curr_pose.position.y - pos_y)/map_res)
+
+
+        self.pathFinder.update_pose((tempx,tempy))
+
+        print("distance:",self.pathFinder.path[tempx][tempy])
+                
+        next_node = self.pathFinder.naive_path_finder(0.05/map_res)
+                
+
+        next_node = ((next_node[0] * map_res), (next_node[1] * map_res))
+        
+
+        error = 0.25
+        ang_vel = np.arctan2(next_node[1],next_node[0]) - get_yaw_from_pose(self.robot_estimate)
+        lin_vel =  2*map_res * pow((1 + np.cos(ang_vel))/2,20)
+        if(next_node[0] == next_node[1]):
+            ang_vel = 0
+            lin_vel = -0.1
+        self.pub_cmd_vel.publish(Twist(linear=Vector3(error * 8 * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))
     
