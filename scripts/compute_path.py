@@ -4,6 +4,32 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 
+def lineseg_dists(p, a, b):
+    # https://stackoverflow.com/questions/54442057/calculate-the-euclidian-distance-between-an-array-of-points-to-a-line-segment-in
+    
+    # Handle case where p is a single point, i.e. 1d array.
+    p = np.atleast_2d(p)
+
+    # TODO for you: consider implementing @Eskapp's suggestions
+    if np.all(a == b):
+        return np.linalg.norm(p - a, axis=1)
+
+    # normalized tangent vector
+    d = np.divide(b - a, np.linalg.norm(b - a))
+
+    # signed parallel distance components
+    s = np.dot(a - p, d)
+    t = np.dot(p - b, d)
+
+    # clamped parallel distance
+    h = np.maximum.reduce([s, t, np.zeros(len(p))])
+
+    # perpendicular distance component, as before
+    # note that for the 3D case these will be vectors
+    c = np.cross(p - a, d)
+
+    # use hypot for Pythagoras to improve accuracy
+    return np.hypot(h, c)
 
 class PathFinding:
     def __init__(self, map, start, destination):
@@ -13,8 +39,8 @@ class PathFinding:
         # for testing only
         # self.path = np.dstack((range(5), [0, 3, 2, -1, 0]))[0]
         # self.path = np.dstack((np.random.uniform(5,10,100), np.random.uniform(5,10,100)))[0]
-        # self.path = np.dstack([np.arange(0, 50, 0.1), 16*np.sin(np.arange(0, 50, 0.1))])[0]
-        self.path = np.dstack([np.arange(0, 5, 1), [0,1,2,1,0]])[0]
+        self.path = np.dstack([np.arange(0, 1000, 0.1), 16*np.sin(np.arange(0, 1000, 0.1))])[0]
+        # self.path = np.dstack([np.arange(0, 5, 1), [0,1,2,1,0]])[0]
         
         print(self.path)
         # self.path = []
@@ -40,11 +66,9 @@ class PathFinding:
 
             # determine reference line between points
             p1, p2 = path[0], path[-1]
-            line = p2 - p1
-            line_len = np.linalg.norm(line)
 
             # get farthest point from line
-            dists = np.abs(np.cross(line, path - p1) / line_len)
+            dists = lineseg_dists(path, p1, p2)
             idx = np.argmax(dists * idxs)
             p = path[idx]
 
