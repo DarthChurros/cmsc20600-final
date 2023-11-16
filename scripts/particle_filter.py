@@ -139,7 +139,7 @@ class PathFinding:
          while (self.path[current_pose[0]][current_pose[1]] != 0):
             current_pose = self.get_next_node(current_pose)
             path.append(node)
-            
+
         return path
 
     def compute_path(self):
@@ -151,8 +151,9 @@ class PathFinding:
             return
 
     #returns the vector that coresponds to the direction the robot should move in world coordinates.
-    def get_translation_vector(self, next_node=None):
-        if next_node is None:
+    def get_translation_vector(self, node=None):
+        next_node = node
+        if node is None:
             next_node = self.get_next_node()
 
         if self.path[self.current_pose[0]][self.current_pose[1]] == -1 and self.path[next_node[0]][next_node[1]] == -1:
