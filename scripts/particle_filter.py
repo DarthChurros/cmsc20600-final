@@ -24,11 +24,13 @@ from numpy.random import random_sample
 import math
 
 from random import randint, random
-
+import threading
 
 import time
 import os
 import copy
+
+from motion import Motion
 
 # demo toggles
 enable_motion_demo = False
@@ -207,16 +209,50 @@ def demo_visualize_closestMap(closestMap):
     import sys
     import matplotlib.pyplot as plt
     cutoff = 0.6
-    #closestMap[closestMap >= cutoff] = cutoff
+    closestMap[closestMap >= cutoff] = cutoff
     plt.imshow(closestMap, cmap='hot', interpolation='nearest')
     plt.show()
     exit(0)
         
     
-    
-    
-    
+import sympy as s
+t_var = s.Symbol("t")
+# x_func = s.cos(t_var)
+# y_func = s.sin(t_var) + 1
+x_func = 0.2 * t_var * s.cos(t_var)
+y_func = 0.2 * t_var * s.sin(t_var)
+x_func = s.Piecewise((0.20 * t_var + 0.8, t_var <= 1), (0.45 * t_var + 0.55, t_var <= 2), (-0.12 * t_var + 1.69, t_var <= 3), (1.33, True))
+y_func = s.Piecewise((1.15 * t_var + 0.3, t_var <= 1), (1.45, t_var <= 2), (-1.3 * t_var + 4.05, t_var <= 3), (0.15, True))
 
+# start: 0.8, 0.3, 0
+# 0.25, 1.15, 1
+# 0.45, 0, 1
+# -0.12, -1.3, 1
+x_lam = s.lambdify(t_var, x_func, "numpy")
+y_lam = s.lambdify(t_var, y_func, "numpy")
+xp_func = s.diff(x_func, t_var)
+yp_func = s.diff(y_func, t_var)
+xp_lam = s.lambdify(t_var, xp_func, "numpy")
+yp_lam = s.lambdify(t_var, yp_func, "numpy")
+a_var = s.Symbol("a")
+b_var = s.Symbol("b")
+d_func = (x_func - a_var) ** 2 + (y_func - b_var) ** 2
+# d = (x - 1) ** 2 + (f - 2) ** 2
+dp_func = s.diff(d_func, t_var)
+dpp_func = s.diff(dp_func, t_var)
+    
+def visualize_curve(self):    
+    ts = np.arange(0, 100, 0.1)
+    particle_cloud_pose_array = PoseArray()
+    particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
+    for t in ts:
+        curr_pose = Pose()
+        
+        init_pose(curr_pose, x_lam(t), y_lam(t), np.arctan2(yp_lam(t), xp_lam(t)))
+        particle_cloud_pose_array.poses.append(curr_pose)
+    self.particles_pub.publish(particle_cloud_pose_array)    
+    
+    
 
 class ParticleFilter:
 
@@ -242,7 +278,7 @@ class ParticleFilter:
 
         print("HERE")
         # load closestMap array
-        self.closestMap = np.load("computeMap.npy")  
+        self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
         self.aStarPathMap = np.vectorize(lambda x: (1 if x > 0.155 and x < 0.6 else 0))(self.closestMap)
         
         self.pathFinder = PathFinding(self.aStarPathMap,(247,275),(218,216))
@@ -251,10 +287,14 @@ class ParticleFilter:
         # our addition:
         if (enable_closestMap_viz_demo):
             # demo_visualize_closestMap(self.closestMap) # input the whole cloestMap
-            demo_visualize_closestMap(np.array(self.pathFinder.path))
+            demo_visualize_closestMap(self.closestMap[190:300 + 1, 160:300 + 1])
+            # demo_visualize_closestMap(np.array(self.pathFinder.path))
 
         # the number of particles used in the particle filter
-        self.num_particles = 5000
+        self.find_num_particles = 10**5 # num_particles for searching/convergence
+        self.num_particles = 10**3 # num_particles for tracking
+        assert (self.find_num_particles >= self.num_particles)
+        
 
         # initialize the particle cloud array
         self.particle_cloud = np.array([Particle(Pose(),0) for _ in range(self.num_particles)]) 
@@ -291,12 +331,19 @@ class ParticleFilter:
         self.yaws_resample = np.zeros(shape=self.num_particles) # yaws only
         self.weights_resample = np.ones(shape=self.num_particles)
 
-        # initialize the estimated robot pose
-        self.robot_estimate = Pose()
+        
+        # buffers used during find behavior
+        self.find_poses = np.zeros(shape=(2, self.find_num_particles)) # x, y of poses only
+        self.find_yaws = np.zeros(shape=self.find_num_particles) # yaws only
+        self.find_weights = np.ones(shape=self.find_num_particles)
+        self.finding = True
+        self.finding_lock = threading.Lock()
+        self.first_pf_cycle = True # do first pf cycle regardless of whether the bot moves
+
 
         # set threshold values for linear and angular movement before we preform an update
-        self.lin_mvmt_threshold = 0.2        
-        self.ang_mvmt_threshold = (np.pi / 6)
+        self.lin_mvmt_threshold = 0.01        
+        self.ang_mvmt_threshold = (np.pi / 60)
 
         self.odom_pose_last_motion_update = None
 
@@ -323,15 +370,26 @@ class ParticleFilter:
         self.tf_listener = TransformListener()
         self.tf_broadcaster = TransformBroadcaster()
 
-        
+        # initialize in-bound indices
+        self.ib_indices = None
+        self.init_ib_indices()
 
+        self.robot_estimate = Pose()
+        self.robot_estimate_set = False
+        self.robot_estimate_updated = False
+        self.robot_estimate_cv = threading.Condition()
+
+        # the motion handler
+        self.motion = Motion(approach="parametric", init_info=(t_var, x_func, y_func))
+        
+        # initialize shutdown callback
+        rospy.on_shutdown(lambda : self.halt())
 
         # intialize the particle cloud
         self.initialize_particle_cloud()
 
         self.initialized = True
         self.first_init = False
-        rospy.on_shutdown(lambda: self.pub_cmd_vel.publish(Twist()))
 
 
 
@@ -385,18 +443,26 @@ class ParticleFilter:
             
             # update weight of particle
             pcle.w = self.weights[i]
-
-    def initialize_particle_cloud(self):
+            
+    def init_ib_indices(self):
+        ''' 
+        Initialize array of indices that are:
+        1) in the maze
+        2) unblocked
         '''
-        Initialize the particle cloud with randomly generated positions and yaws.
-        
-        Updates are propagated to BOTH particle_cloud and internal state arrays.
-        '''
-        
         while (not self.map_set):
             # wait until the map is set, you idiot
             time.sleep(0.1)
-
+        
+        occup_arr = np.array(self.map.data)
+        w = self.map.info.width
+        h = self.map.info.height
+        occup_arr = occup_arr.reshape(w, -h).T
+        ib = (occup_arr <= 10) & (occup_arr != -1)
+        self.ib_indices = np.array(np.where(ib))
+        self.num_ib_indices = self.ib_indices.shape[1]
+            
+    def scatter_particle_cloud(self):
         # extract map info
         w = self.map.info.width
         h = self.map.info.height
@@ -411,26 +477,37 @@ class ParticleFilter:
         rng = np.random.default_rng()
         
         # generate random particles
-        for i in range(self.num_particles):
-            # generate random position and yaw for new particle
-            x = rng.integers(low=0,high=w)
-            y = rng.integers(low=0,high=h)
-            yaw = rng.random() * 2 * np.pi
+        self.find_yaws[:] = np.random.uniform(low=0, high=2 * np.pi, size=self.find_num_particles)
+        self.find_weights[:] = np.ones(shape=self.find_num_particles)
+        
+        coords = self.ib_indices[:, np.random.randint(low=0, high=self.num_ib_indices, size=self.find_num_particles)]
+        xs = coords[0]
+        ys = coords[1]
+        
+        # convert (x,y) to map coordinates
+        adj_xs = xs * map_res + map_origin_x
+        adj_ys = ys * map_res + map_origin_y
+        
+        # set particle internal state arrays at corresponding particle position
+        self.find_poses[0] = adj_xs # poses[:, i] = [x_i, y_i]
+        self.find_poses[1] = adj_ys
+
+
+    def initialize_particle_cloud(self):
+        '''
+        Initialize the particle cloud with randomly generated positions and yaws.
+        
+        Updates are propagated to BOTH particle_cloud and internal state arrays.
+        '''
+        
+        assert (self.map_set) # should be set during or before self.init_ib_indices
             
-            while self.map.data[y*w + x] > 10 or self.map.data[y*w+x] == -1:
-                # re-generate (x,y) until it no longer:
-                # 1) occupies an obstacle, OR
-                # 2) is out of bounds
-                x = rng.integers(low=0,high=w)
-                y = rng.integers(low=0,high=h)
-            
-            # convert (x,y) to map coordinates
-            adj_x = x * map_res + map_origin_x
-            adj_y = y * map_res + map_origin_y
-            
-            # set particle internal state arrays at corresponding particle position
-            self.poses[:, i] = [adj_x,adj_y] # poses[:, i] = [x_i, y_i]
-            self.yaws[i] = yaw               # yaws[i] = [yaws_i]
+        self.scatter_particle_cloud()
+        
+        self.poses[0, :] = self.find_poses[0, :self.num_particles]
+        self.poses[1, :] = self.find_poses[1, :self.num_particles]
+        self.yaws[:] = self.find_yaws[:self.num_particles] 
+        self.weights[:] = self.find_weights[:self.num_particles]
         
         # apply internal states to particle_cloud
         self.update_particle_cloud()
@@ -460,7 +537,14 @@ class ParticleFilter:
         
         WARNING: only updates internal state array, NOT particle_cloud
         '''
-        self.weights /= np.sum(self.weights)
+        if self.finding:
+            weights = self.find_weights
+            num_particles = self.find_num_particles
+        else:
+            weights = self.weights
+            num_particles = self.num_particles
+        
+        weights /= np.sum(weights)
         
         
         
@@ -471,19 +555,19 @@ class ParticleFilter:
         If the normalized weights do not add up to 1, invoking np.random.choice 
         on these weights will fail.
         '''
-        sum_weight = np.sum(self.weights)
+        sum_weight = np.sum(weights)
         float_error = 1 - sum_weight
         if float_error >= 0:
             # sum_weight <= 1 : must increase sum_weight to 1
             
             # simply add float_error to one of the weights
-            self.particle_cloud[0].w += float_error
+            weights[0] += float_error
             return
         
-        for i in range(self.num_particles):
+        for i in range(num_particles):
             # sum_weight > 1 : must decrease sum_weight to 1
             
-            if float_error < -self.weights[i]:
+            if float_error < -weights[i]:
                 '''
                 Adding float_error to this weight will make the weight negative,
                 which is invalid.
@@ -492,8 +576,8 @@ class ParticleFilter:
                 and move on to the next weight.
                 '''
                 
-                self.weights[i] = 0
-                float_error += self.weights[i]
+                weights[i] = 0
+                float_error += weights[i]
                 continue
             else:
                 '''
@@ -503,7 +587,7 @@ class ParticleFilter:
                 Add the float_error to the weight and exit.
                 '''
                 
-                self.weights[i] += float_error
+                weights[i] += float_error
                 return
             
             
@@ -539,6 +623,15 @@ class ParticleFilter:
         robot_pose_estimate_stamped.pose = self.robot_estimate
         robot_pose_estimate_stamped.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
         self.robot_estimate_pub.publish(robot_pose_estimate_stamped)
+        
+    
+    def reinitialize(self):
+        with self.finding_lock:
+            self.finding = True
+            self.first_pf_cycle = True
+            with self.robot_estimate_cv:
+                self.robot_estimate_set = False
+                self.robot_estimate_updated = False
 
 
 
@@ -551,8 +644,19 @@ class ParticleFilter:
         
         from collections import Counter
         
+        if self.finding:
+            num_particles = self.find_num_particles
+            poses = self.find_poses
+            yaws = self.find_yaws
+            weights = self.find_weights
+        else:
+            num_particles = self.num_particles
+            poses = self.poses
+            yaws = self.yaws
+            weights = self.weights
+        
         # sample particle (indices) in accordance with weights
-        sample = np.random.choice(np.arange(self.num_particles), size=self.num_particles, p=self.weights)
+        sample = np.random.choice(np.arange(num_particles), size=num_particles, p=weights)
         
         '''
         Count sampling frequencies
@@ -562,17 +666,25 @@ class ParticleFilter:
         
         dst = 0 # current destination index to fill in resample buffers
         i = 0 # particle index in sample
+        end_reached = False
         for i in counts.keys():
             n = counts[i]
             
+            if dst + n >= self.num_particles:
+                end_reached =  True
+                n = self.num_particles - dst
+            
             # fill n-long stretch in the buffer with the state of particle i
             # this simulates picking n copies of particle i
-            self.poses_resample[:,dst:dst+n] = self.poses[:, i][:, np.newaxis]
-            self.yaws_resample[dst:dst+n] = self.yaws[i]
-            self.weights_resample[dst:dst+n] = self.weights[i]
+            self.poses_resample[:,dst:dst+n] = poses[:, i][:, np.newaxis]
+            self.yaws_resample[dst:dst+n] = yaws[i]
+            self.weights_resample[dst:dst+n] = weights[i]
             
             # advance to the next available stretch in the buffer
             dst += n
+        
+            if end_reached:
+                break
         
         # the resample buffer is now the current particle internal state 
         # ...so swap normal and resample buffers
@@ -640,7 +752,58 @@ class ParticleFilter:
 
             if (np.abs(curr_x - old_x) > self.lin_mvmt_threshold or 
                 np.abs(curr_y - old_y) > self.lin_mvmt_threshold or
-                np.abs(curr_yaw - old_yaw) > self.ang_mvmt_threshold or True):
+                np.abs(curr_yaw - old_yaw) > self.ang_mvmt_threshold or
+                self.first_pf_cycle or 
+                True):
+                self.first_pf_cycle = False
+
+                # This is where the main logic of the particle filter is carried out
+                with self.finding_lock:
+                    print("START ====")
+                    
+                    prevT = time.time()
+                    if self.finding:                
+                        self.scatter_particle_cloud()
+                    else:
+                        self.update_particles_with_motion_model()
+                    currT = time.time()
+                    print("motion", currT - prevT)
+                    
+                    prevT = currT
+                    self.update_particle_weights_with_measurement_model(data)
+                    currT = time.time()
+                    print("measure", currT - prevT)
+                    
+                    prevT = currT
+                    self.normalize_particles()
+                    currT = time.time()
+                    print("norm", currT - prevT)
+
+                    prevT = currT
+                    self.resample_particles()
+                    currT = time.time()
+                    print("resample", currT - prevT)
+                    
+                    # apply internal states to particle buffer
+                    self.update_particle_cloud()
+
+                    prevT = currT
+                    self.update_estimated_robot_pose()
+                    currT = time.time()
+                    print("update pose", currT - prevT)
+
+                    prevT = currT
+                    self.publish_particle_cloud()
+                    currT = time.time()
+                    print("pub cloud", currT - prevT)
+
+                    prevT = currT
+                    self.publish_estimated_robot_pose()
+                    currT = time.time()
+                    print("pub pose", currT - prevT)
+                    print("END ====\n")                
+                    
+                    self.finding = False
 
 
 
@@ -680,51 +843,11 @@ class ParticleFilter:
                 if self.pathFinder.at_destination():
                     self.sound_pub.publish(Sound(0))
                     rospy.sleep(4)
-                    rospy.signal_shutdown("got bored")
+                    rospy.signal_shutdown("got bored")            
 
-
-                print("START ====")                
-                prevT = time.time()
-                self.update_particles_with_motion_model()
-                currT = time.time()
-                print("motion", currT - prevT)
-                
-                prevT = currT
-                self.update_particle_weights_with_measurement_model(data)
-                currT = time.time()
-                print("measure", currT - prevT)
-                
-                prevT = currT
-                self.normalize_particles()
-                currT = time.time()
-                print("norm", currT - prevT)
-
-                prevT = currT
-                self.resample_particles()
-                currT = time.time()
-                print("resample", currT - prevT)
-                
-                # apply internal states to particle buffer
-                self.update_particle_cloud()
-
-                prevT = currT
-                self.update_estimated_robot_pose()
-                currT = time.time()
-                print("update pose", currT - prevT)
-
-                prevT = currT
-                self.publish_particle_cloud()
-                currT = time.time()
-                print("pub cloud", currT - prevT)
-
-                prevT = currT
-                self.publish_estimated_robot_pose()
-                currT = time.time()
-                print("pub pose", currT - prevT)
-                print("END ====\n")                
-
-                # diffs = np.array(starts) - np.array(ends)
-                # print("diffs", diffs)
+                # start = time.time()
+                # self.motion.move(self.robot_estimate)
+                # print("move:", time.time()-start)         
 
                 self.odom_pose_last_motion_update = self.odom_pose
                 self.first_init = False
@@ -736,21 +859,26 @@ class ParticleFilter:
         
         # Compute average position and yaw (weighted with particle weights).
         av_x = np.average(self.poses[0, :], weights=self.weights)
-        av_y = np.average(self.poses[1, :], weights=self.weights)   
+        av_y = np.average(self.poses[1, :], weights=self.weights)
         av_yaw = np.average(self.yaws, weights=self.weights)
         
         # Update current robot pose to computed averages
         pose = self.robot_estimate
         # pose.position = Point()
-        pose.position.x = av_x
-        pose.position.y = av_y
-        pose.position.z = 0
-        # Need to convert yaw to quaternion
-        quat = quaternion_from_euler(0,0,av_yaw)
-        pose.orientation.x = quat[0]
-        pose.orientation.y = quat[1]
-        pose.orientation.z = quat[2]
-        pose.orientation.w = quat[3]
+        with self.robot_estimate_cv:
+            pose.position.x = av_x
+            pose.position.y = av_y
+            pose.position.z = 0
+            # Need to convert yaw to quaternion
+            quat = quaternion_from_euler(0,0,av_yaw)
+            pose.orientation.x = quat[0]
+            pose.orientation.y = quat[1]
+            pose.orientation.z = quat[2]
+            pose.orientation.w = quat[3]
+            
+            self.robot_estimate_set = True
+            self.robot_estimate_updated = True
+            self.robot_estimate_cv.notify_all()
         return
 
 
@@ -772,12 +900,31 @@ class ParticleFilter:
         enable_measure_model_demo = False
 
         # Include every "angle_incr"-th lidar angle
-        angle_incr = 1 if self.first_init else 90 # 3 increment ~ 0.9 degrees
-        angle_indices = np.arange(0, 360, angle_incr)
-        num_angles = len(angle_indices)
+        angle_incr = 3 # 3 increment ~ 0.9 degrees
+        is_rplidar = False
         
-        # convert from lidar angle indices to angles
-        lidar_angles = angle_indices * (2 * np.pi) / 360
+        if is_rplidar:
+            angle_indices = np.arange(0, 1147, angle_incr)
+            num_angles = len(angle_indices)
+            
+            # convert from lidar angle indices to angles
+            lidar_angles = angle_indices * (2 * np.pi) / 1147 - np.pi
+        else:
+            angle_indices = np.arange(0, 360, angle_incr)
+            num_angles = len(angle_indices)
+            
+            # convert from lidar angle indices to angles
+            lidar_angles = angle_indices * (2 * np.pi) / 360
+        
+        
+        # angle_incr = 1 if self.first_init else 90 # 3 increment ~ 0.9 degrees
+        # angle_indices = np.arange(0, 360, angle_incr)
+        # num_angles = len(angle_indices)
+        
+        # # convert from lidar angle indices to angles
+        # lidar_angles = angle_indices * (2 * np.pi) / 360
+        
+        
         
         if enable_measure_model_demo:
             # dummy ranges value for demo purposes
@@ -804,13 +951,55 @@ class ParticleFilter:
         # default distance penalty if a transformed scan point falls out of the map
         oob_penalty = 20
         
-        for i in range(self.num_particles):
+        if self.finding:
+            num_particles = self.find_num_particles
+            yaws = self.find_yaws
+            poses = self.find_poses
+            weights = self.find_weights
+        else:
+            num_particles = self.num_particles
+            yaws = self.yaws
+            poses = self.poses
+            weights = self.weights
+        
+        # reorient "ranges" vectors to particle yaw...
+        trans_dxs = ranges * np.cos(lidar_angles + yaws[:, None]) + poses[0][:, None]
+        trans_dys = ranges * np.sin(lidar_angles + yaws[:, None]) + poses[1][:, None]
+        
+        norm_xs = ((trans_dxs - pos_x)/map_res).astype(np.int64, copy=False)
+        norm_ys = ((trans_dys - pos_y)/map_res).astype(np.int64, copy=False)
+        
+        # closest obstacle distances; initialized to out-of-bound penalty
+        # (until proven to be "in_bound", assume all "ranges" are out-of-bound)
+        dists = np.zeros(shape=(num_particles, num_angles)) + oob_penalty
+        
+        # boolean mask indicating all in-bound range indices
+        in_bound = (norm_xs >= 0) & (norm_xs < width) & (norm_ys >= 0) & (norm_ys < height)
+        
+        # inititalize only in-bound closest map distances
+        dists[in_bound] = self.closestMap[norm_xs[in_bound], norm_ys[in_bound]]
+        zr_zm = 0
+        if z_max != 0:
+            # set zr_zm IFF z_max is nonzero
+            zr_zm = z_random/z_max
+        
+        # compute likelihood probabilities of each distance
+        prob_ds = np.exp(-(dists**2)/(2 * (sigma_hit**2))) / (sigma_hit * np.sqrt(2 * np.pi))
+        
+        # set particle weight with product of probabilities
+        weights[:] = np.prod(preserve_factor * z_hit * prob_ds + zr_zm, axis=1)
+        return
+    
+    
+    
+        
+        for i in range(num_particles):
             # yaw of ith particle
-            curr_yaw = self.yaws[i]
+            curr_yaw = yaws[i]
             
             # x,y positions of ith particle
-            x_i = self.poses[0, i]
-            y_i = self.poses[1, i]
+            x_i = poses[0, i]
+            y_i = poses[1, i]
             
             # reorient "ranges" vectors to particle yaw...
             trans_dxs = ranges * np.cos(lidar_angles + curr_yaw)
@@ -831,23 +1020,23 @@ class ParticleFilter:
             # boolean mask indicating all in-bound range indices
             in_bound = (norm_xs >= 0) & (norm_xs < width) & (norm_ys >= 0) & (norm_ys < height)
             # inititalize only in-bound closest map distances
-            dists = self.closestMap[norm_xs[in_bound], norm_ys[in_bound]]
+            dists[in_bound] = self.closestMap[norm_xs[in_bound], norm_ys[in_bound]]
+            assert(len(dists) == num_angles)
             
-            zr_zm = 0
-            if z_max != 0:
-                # set zr_zm IFF z_max is nonzero
-                zr_zm = z_random/z_max
             
             # compute likelihood probabilities of each distance
             prob_ds = np.exp(-pow(dists,2)/(2 * pow(sigma_hit,2))) / (sigma_hit * np.sqrt(2 * np.pi))
             
             # set particle weight with product of probabilities
-            self.weights[i] = np.prod( z_hit * prob_ds + zr_zm)
+            weights[i] = np.prod(preserve_factor * z_hit * prob_ds + zr_zm)
 
 
         
 
     def update_particles_with_motion_model(self):        
+        # we should not call motion_model during finding
+        assert (not self.finding)
+        
         '''
         Updates particles' positions and yaws by the latest movement of the bot.
         
@@ -878,8 +1067,8 @@ class ParticleFilter:
         
         # standard deviations for noise
         dist = np.hypot(dx_raw, dy_raw)
-        angle_increment = 30 * np.pi / 180 * min(abs(dyaw_raw) / 0.75, 1)
-        linear_increment = 0.5 * min(dist / 0.225, 1)
+        angle_increment = 6 * np.pi / 180 * min(abs(dyaw_raw) / 0.75, 1)
+        linear_increment = 0.1 * min(dist / 0.225, 1)
         
         # generate random tapes for movement noise
         # e.g. dx_noise[i] == x translation noise for particle i
@@ -892,16 +1081,17 @@ class ParticleFilter:
         dys = dy_noise + dy_raw
         dyaws = dyaw_noise + dyaw_raw
         
-        # update particle yaws by corresponding deltas (modulo to wrap around)
-        self.yaws = (self.yaws + dyaws) % (2 * np.pi)
-        
-        # print(f"dx: {dx_raw}, dy: {dy_raw}, dyaw: {dyaw_raw}")
-        
         # update particle positions by corresponding (transformed) deltas
         thetas = self.yaws - old_yaw
         
         self.poses[0, :] += (dxs * np.cos(thetas) - dys * np.sin(thetas))
         self.poses[1, :] += (dxs * np.sin(thetas) + dys * np.cos(thetas))            
+        
+        # update particle yaws by corresponding deltas (modulo to wrap around)
+        self.yaws = (self.yaws + dyaws) % (2 * np.pi)
+        
+        # print(f"dx: {dx_raw}, dy: {dy_raw}, dyaw: {dyaw_raw}")
+        
         
         # based on the how the robot has moved (calculated from its odometry), we'll  move
         # all of the particles correspondingly
@@ -909,12 +1099,134 @@ class ParticleFilter:
         # TODO
 
 
+    def halt(self):
+        self.motion.halt()
+        with self.robot_estimate_cv:
+            self.robot_estimate_set = True
+            self.robot_estimate_updated = True
+            self.robot_estimate_cv.notify_all()
+    
+
+def wrapto_pi(angle):
+    return (angle + np.pi) % (2 * np.pi) - np.pi
+    # https://stackoverflow.com/questions/15927755/opposite-of-numpy-unwrap
+    
+    angle %= (2 * np.pi)
+    assert (-2 * np.pi <= angle <= 2 * np.pi)
+    
+    if angle <= -np.pi:
+        return 2 * np.pi + angle
+    elif angle > np.pi:
+        return angle - 2 * np.pi
+    else:
+        return angle
 
 if __name__=="__main__":
     
 
     pf = ParticleFilter()
     print("HERE")
+    
+    
+    
+    rospy.spin()
+    exit(0)
+    # !! PROCEED NO FURTHER !!
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    # global robot_estimate_set
+    # global self.robot_estimate_updated
+    # global self.robot_estimate_cv
+    
+    curr_t = 0
+    pub_cmd_vel = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
+    rospy.on_shutdown(lambda : halt(pub_cmd_vel))
+    
+    while not robot_estimate_set:
+        print("not set")
+        rospy.sleep(1)
+    print("set!")
+        
+    # while not rospy.is_shutdown():
+    #     time.sleep(0.5)
+    #     pass
+
+    while not rospy.is_shutdown():
+        with self.robot_estimate_cv:
+            while not self.robot_estimate_updated:
+                self.robot_estimate_cv.wait()
+            print("updated!")
+            curr_x = robot_estimate.position.x
+            curr_y = robot_estimate.position.y
+            curr_yaw = get_yaw_from_pose(robot_estimate)
+            self.robot_estimate_updated = False
+        if rospy.is_shutdown():
+            break
+            
+        start = time.time()
+        is_approx = True
+        
+        start=time.time()
+        d_curr = d_func.subs(a_var, curr_x).subs(b_var, curr_y)
+        dp_curr = dp_func.subs(a_var, curr_x).subs(b_var, curr_y)
+
+
+        if not is_approx:
+            # roots = s.Poly(dp, x).nroots()
+            roots = s.real_roots(dp_curr, t_var)
+            t = min(roots, key = lambda r : d_curr.subs(t_var, r).evalf())
+            clos_x_sym = x_lam(t)
+            clos_y_sym = y_lam(t)
+            
+            clos_x = clos_x_sym.evalf()
+            clos_y = clos_y_sym.evalf()
+            
+            curve_x = xp_func.subs(t_var, clos_x_sym).evalf()
+            curve_y = yp_func.subs(t_var, clos_x_sym).evalf()
+            
+        else:
+            from scipy.optimize import minimize_scalar
+            d_curr_lam = s.lambdify(t_var, d_curr, "numpy")
+            
+            # 0.01 gives a sense of urgency; always pick at least slightly further along the curve
+            result = minimize_scalar(d_curr_lam, bounds=(curr_t + 0.01, curr_t + 1), method='bounded')
+            t = result.x
+        
+            clos_x = x_lam(t)
+            clos_y = y_lam(t)
+        
+            curve_x = xp_lam(t)
+            curve_y = yp_lam(t)
+            
+            curr_t = t
+        
+        corr_weight = np.e ** (100 * np.hypot(clos_x - curr_x, clos_y - curr_y)) - 1
+        corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * 16
+        curve_vel = np.array([curve_x, curve_y]) * 8
+        total_vel = (corr_vel + curve_vel).astype(float)
+        # np.dot()
+        target_yaw = np.arctan2(total_vel[1], total_vel[0])
+        ang_error = wrapto_pi(target_yaw - curr_yaw)
+        pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y))
+        print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
+
+        
+        # print("time: ", time.time() - start)
+        
+        # lin_error = absolute_cutoff(dist + 0.4, limit=1) * (abs(ang_error) / np.pi - 1) ** 12
+        lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 16
+        pub_cmd_vel.publish(Twist(linear=Vector3(0.5*lin_error,0,0),angular=Vector3(0,0,0.5*ang_error)))
+        print("MOVE: ", time.time()-start)
     rospy.spin()
 
 

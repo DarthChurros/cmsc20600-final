@@ -1,5 +1,5 @@
 <package format="2">
-  <name>particle_filter_project_final</name>
+  <name>astar_project</name>
   <version>0.0.0</version>
   <description>
   The particle_filter_project package
@@ -17,8 +17,6 @@
   </export>
 
   <buildtool_depend>catkin</buildtool_depend>
-
-   <buildtool_depend>catkin</buildtool_depend>
 
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>
