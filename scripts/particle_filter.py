@@ -105,7 +105,7 @@ class PathFinding:
                 for j in self.get_adjacent(i):
                     if self.path[j[0]][j[1]] == -1 and not (j in checked or j in tempUnchecked):
                         tempUnchecked.append(j)
-                    elif elf.path[j[0]][j[1]] != -1:
+                    elif self.path[j[0]][j[1]] != -1:
                         return j
                 checked.append(i)
             unchecked = tempUnchecked
@@ -675,7 +675,7 @@ class ParticleFilter:
                 if(next_node[0] == next_node[1]):
                     ang_vel = 0
                     lin_vel = -0.1
-                self.pub_cmd_vel.publish(Twist(linear=Vector3(error * 2 * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))
+                self.pub_cmd_vel.publish(Twist(linear=Vector3(error * 8 * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))
 
                 if self.pathFinder.at_destination():
                     self.sound_pub.publish(Sound(0))
