@@ -13,7 +13,8 @@ class PathFinding:
         # for testing only
         # self.path = np.dstack((range(5), [0, 3, 2, -1, 0]))[0]
         # self.path = np.dstack((np.random.uniform(5,10,100), np.random.uniform(5,10,100)))[0]
-        self.path = np.dstack([np.arange(0, 50, 0.1), 16*np.sin(np.arange(0, 50, 0.1))])[0]
+        # self.path = np.dstack([np.arange(0, 50, 0.1), 16*np.sin(np.arange(0, 50, 0.1))])[0]
+        self.path = np.dstack([np.arange(0, 5, 1), [0,1,2,1,0]])[0]
         
         print(self.path)
         # self.path = []
