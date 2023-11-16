@@ -34,7 +34,7 @@ from motion import Motion
 
 # demo toggles
 enable_motion_demo = False
-enable_closestMap_viz_demo = True
+enable_closestMap_viz_demo = False
 
 def get_yaw_from_pose(p):
     """ A helper function that takes in a Pose object (geometry_msgs) and returns yaw"""
@@ -136,7 +136,7 @@ class PathFinding:
             node = self.current_pose
 
         path = [node]
-         while (self.path[current_pose[0]][current_pose[1]] != 0):
+        while (self.path[current_pose[0]][current_pose[1]] != 0):
             current_pose = self.get_next_node(current_pose)
             path.append(node)
 
@@ -371,12 +371,10 @@ class ParticleFilter:
         # publish the current particle cloud
         self.particles_pub = rospy.Publisher("particle_cloud", PoseArray, queue_size=10)
 
-        self.sound_pub = rospy.Publisher("/sound",Sound,queue_size=10)
+        self.sound_pub = rospy.Publisher("/sound", Sound, queue_size=10)
 
         # publish the estimated robot pose
         self.robot_estimate_pub = rospy.Publisher("estimated_robot_pose", PoseStamped, queue_size=10)
-
-        self.pub_cmd_vel = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
 
         # subscribe to the map server
         rospy.Subscriber(self.map_topic, OccupancyGrid, self.get_map)
