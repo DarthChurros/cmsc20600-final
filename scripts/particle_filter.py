@@ -186,9 +186,7 @@ class PathFinding:
 
         self.path = temp_path
         self.algorithm = "a_star"
-
-    
-
+        
     def computer_path_dijstra(self):
         self.algorithm = "dijstra"
         checked = [self.destination]
