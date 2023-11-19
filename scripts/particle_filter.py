@@ -981,8 +981,12 @@ class ParticleFilter:
             # get ranges only for included angle_indices
             ranges = np.array(data.ranges)[angle_indices]
         
-        # preprocess; set all infinite values to max distance
-        ranges[ranges == float("inf")] = 12
+        if is_rplidar:
+            # preprocess; set all infinite values (beyond lidar range) to max distance
+            ranges[ranges == float("inf")] = 12
+        else:   
+            # preprocess; set all zero values (beyond lidar range) to max distance
+            ranges[ranges == 0] = 5
         
         # extract map info
         width = self.closestMap.shape[1]
