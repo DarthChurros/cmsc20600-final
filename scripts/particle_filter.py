@@ -312,7 +312,8 @@ class ParticleFilter:
         self.robot_estimate_cv = threading.Condition()
 
         # the motion handler
-        self.motion = Motion(approach="parametric", init_info=(t_var, x_func, y_func))
+        # self.motion = Motion(approach="parametric", init_info=(t_var, x_func, y_func))
+        self.motion = Motion(approach="naive", init_info=None)
         
         # initialize shutdown callback
         rospy.on_shutdown(lambda : self.halt())
@@ -742,9 +743,9 @@ class ParticleFilter:
                     rospy.sleep(4)
                     rospy.signal_shutdown("got bored")            
 
-                # start = time.time()
-                # self.motion.move(self.robot_estimate)
-                # print("move:", time.time()-start)         
+                start = time.time()
+                self.motion.move(self)
+                print("move:", time.time()-start)         
 
                 self.odom_pose_last_motion_update = self.odom_pose
                 self.first_init = False
