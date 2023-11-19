@@ -217,6 +217,7 @@ class ParticleFilter:
         self.pathFinder = PathFinding(self.aStarPathMap, start=(274,247), destination=(214,204) ,algorithm="dijkstra")
         self.pathFinder.compute_shortest_dists()
         self.pathFinder.compute_path()
+        self.pathFinder.reduce_path(1)
         print("THEREs")
         # our addition:
         if (enable_closestMap_viz_demo):
@@ -312,8 +313,8 @@ class ParticleFilter:
         self.robot_estimate_cv = threading.Condition()
 
         # the motion handler
-        # self.motion = Motion(approach="parametric", init_info=(t_var, x_func, y_func))
-        self.motion = Motion(approach="naive", init_info=None)
+        self.motion = Motion(approach="parametric", init_info=(t_var, x_func, y_func))
+        # self.motion = Motion(approach="naive", init_info=None)
         
         # initialize shutdown callback
         rospy.on_shutdown(lambda : self.halt())

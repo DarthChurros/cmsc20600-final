@@ -1,6 +1,33 @@
 import numpy as np
 import math
 
+def lineseg_dists(p, a, b):
+    # https://stackoverflow.com/questions/54442057/calculate-the-euclidian-distance-between-an-array-of-points-to-a-line-segment-in
+    
+    # Handle case where p is a single point, i.e. 1d array.
+    p = np.atleast_2d(p)
+
+    # TODO for you: consider implementing @Eskapp's suggestions
+    if np.all(a == b):
+        return np.linalg.norm(p - a, axis=1)
+
+    # normalized tangent vector
+    d = np.divide(b - a, np.linalg.norm(b - a))
+
+    # signed parallel distance components
+    s = np.dot(a - p, d)
+    t = np.dot(p - b, d)
+
+    # clamped parallel distance
+    h = np.maximum.reduce([s, t, np.zeros(len(p))])
+
+    # perpendicular distance component, as before
+    # note that for the 3D case these will be vectors
+    c = np.cross(p - a, d)
+
+    # use hypot for Pythagoras to improve accuracy
+    return np.hypot(h, c)
+
 class PathFinding:
     
     def __init__(self, map, start, destination, algorithm="dijkstra", bound=4):
@@ -12,6 +39,44 @@ class PathFinding:
         self.bound = bound
         
         self.path = None
+
+    def reduce_path(self, epsilon):
+        assert (epsilon > 0)
+        
+        def lp(epsilon, path, idxs):
+            # assumes that self.path is a 2D numpy array [[x1, y1], [x2, y2], ...]
+            path_len = len(path)
+            assert(path_len >= 2)
+
+            # path with only two points cannot be reduced, fewer is faulty input
+            if path_len == 2:
+                return
+
+            # determine reference line between points
+            p1, p2 = path[0], path[-1]
+
+            # get farthest point from line
+            dists = lineseg_dists(path, p1, p2)
+            idx = np.argmax(dists * idxs)
+            p = path[idx]
+
+            # determine whether to keep that point or reduce the path
+            if dists[idx] > epsilon:
+                # keep
+                lp(epsilon, path[: idx + 1], idxs[: idx + 1])
+                lp(epsilon, path[idx:], idxs[idx:])
+            else:
+                # reduce segment
+                idxs[1:-1] = False
+        
+        path = self.path
+        idxs = np.ones(len(path), dtype=bool)
+        
+        lp(epsilon, path, idxs)
+
+        self.path = self.path[idxs]
+        return self.path
+        
 
     #sets the postition of the robot
     def update_pose(self, pose):
