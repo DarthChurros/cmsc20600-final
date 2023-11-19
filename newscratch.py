@@ -142,7 +142,7 @@ def scipy_interpolate():
     fig, ax = plt.subplots()
     ax.plot(x, y, 'ro')
     ax.plot(new_points[0], new_points[1], 'r-')
-    # ax.plot(der_points[0], der_points[1], 'b-')
+    ax.plot(der_points[0], der_points[1], 'b-')
     nextT = time.time()
     print("plot: ", nextT - prevT)
     
@@ -174,6 +174,9 @@ def scipy_interpolate():
     print("Closest Point on Curve:", closest_point_on_curve)
     # ax.plot(splev(0.5, tck)[0], splev(0.5, tck)[1], 'go')
     ax.plot(closest_point_on_curve[0], closest_point_on_curve[1], 'go')
+    
+    derivative_of_closest_point = splev(closest_point_t, tck, der=1)
+    ax.plot(derivative_of_closest_point[0], derivative_of_closest_point[1], 'ro')
     ax.plot(given_point[0], given_point[1], 'bo')
     plt.show()
             
@@ -193,20 +196,20 @@ def do_nothing(n):
             
 if __name__=="__main__":    
     
-    ts=[]
-    t=time.time()
-    # do_nothing(1000)
-    for i in range(nem):
-        thread = threading.Thread(target=do_nothing, args=(nrum,))
-        ts.append(thread)
-        thread.start()
-    for x in ts:
-        print(ts)
-        x.join()
+    # ts=[]
+    # t=time.time()
+    # # do_nothing(1000)
+    # for i in range(nem):
+    #     thread = threading.Thread(target=do_nothing, args=(nrum,))
+    #     ts.append(thread)
+    #     thread.start()
+    # for x in ts:
+    #     print(ts)
+    #     x.join()
     
-    print(gr)
-    print(time.time()-t)
-    exit(0)
+    # print(gr)
+    # print(time.time()-t)
+    # exit(0)
 
     # demo_sympy()
     # demo_list_piecewise()
