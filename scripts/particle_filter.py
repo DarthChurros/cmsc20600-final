@@ -73,13 +73,15 @@ def init_pose(pose: Pose, x, y, yaw):
 
 class PathFinding:
 
-    def __init__(self, map, start, destination, algorithm="dijstra", bound=4):
+    def __init__(self, map, start, destination, algorithm="dijkstra", bound=4):
         self.algorithm = algorithm
         self.map = map
-        self.path = []
+        self.shortest_dists = None
         self.current_pose = start
         self.destination = destination
         self.bound = bound
+        
+        self.path = None
 
     #sets the postition of the robot
     def update_pose(self, pose):
@@ -93,7 +95,7 @@ class PathFinding:
             nodes.append(next_node)
             distances.append(True)
             next_node = self.get_next_node(next_node)
-            if self.path[next_node[0]][next_node[1]] < self.bound:
+            if self.shortest_dists[next_node[0]][next_node[1]] < self.bound:
                 break
             elif (next_node[0] - self.current_pose[0] == 0):
                 for i in range(len(nodes)):
@@ -118,9 +120,9 @@ class PathFinding:
             tempUnchecked = []
             for i in unchecked:
                 for j in self.get_adjacent(i):
-                    if self.path[j[0]][j[1]] == -1 and not (j in checked or j in tempUnchecked):
+                    if self.shortest_dists[j[0]][j[1]] == -1 and not (j in checked or j in tempUnchecked):
                         tempUnchecked.append(j)
-                    elif self.path[j[0]][j[1]] != -1:
+                    elif self.shortest_dists[j[0]][j[1]] != -1:
                         return j
                 checked.append(i)
             unchecked = tempUnchecked
@@ -131,11 +133,11 @@ class PathFinding:
         if node is None:
             node = self.current_pose
     
-        if self.algorithm == "dijstra":
+        if self.algorithm == "dijkstra":
             adjacent = self.get_adjacent(node)
             min = 0
             for i in range(len(adjacent)):
-                if (self.path[adjacent[min][0]][adjacent[min][1]] == -1) or ((self.path[adjacent[i][0]][adjacent[i][1]] != -1) and (self.path[adjacent[i][0]][adjacent[i][1]] < self.path[adjacent[min][0]][adjacent[min][1]])):
+                if (self.shortest_dists[adjacent[min][0]][adjacent[min][1]] == -1) or ((self.shortest_dists[adjacent[i][0]][adjacent[i][1]] != -1) and (self.shortest_dists[adjacent[i][0]][adjacent[i][1]] < self.shortest_dists[adjacent[min][0]][adjacent[min][1]])):
                     min = i
 
             return adjacent[min]
@@ -144,23 +146,12 @@ class PathFinding:
         else:
             return None       
 
-    def get_full_path(self, node=None):
-        if node is None:
-            node = self.current_pose
-
-        current_pose = node
-        path = [node]
-        while (self.path[current_pose[0]][current_pose[1]] != 0):
-            current_pose = self.get_next_node(current_pose)
-            path.append(current_pose)
-
-        return path
-
-    def compute_path(self):
-        if self.algorithm == "dijstra":
-            self.compute_path_dijstra()
+    def compute_shortest_dists(self):
+        if self.algorithm == "dijkstra":
+            self.compute_shortest_dists_dijkstra()
         elif self.algorithm == "a_star":
-            self.compute_path_a_star()
+            assert(False)
+            # TODO!!!
         else:
             return
 
@@ -170,7 +161,7 @@ class PathFinding:
         if node is None:
             next_node = self.get_next_node()
 
-        if self.path[self.current_pose[0]][self.current_pose[1]] == -1 and self.path[next_node[0]][next_node[1]] == -1:
+        if self.shortest_dists[self.current_pose[0]][self.current_pose[1]] == -1 and self.shortest_dists[next_node[0]][next_node[1]] == -1:
             next_node = self.find_nearest_non_negative(self.current_pose) 
 
         translation = (-self.current_pose[0] + next_node[0], - self.current_pose[1] + next_node[1])
@@ -188,27 +179,29 @@ class PathFinding:
                 adjacent_nodes.append((node[0] + i[0],node[1] + i[1]))
         return adjacent_nodes
 
-    def compute_path_a_star(self):
-        self.algorithm = "dijstra"
-        self.compute_path()
-        temp_path =  np.zeros(shape=self.map.shape) - 1
+    def compute_path(self):
+        '''
+        Must call compute_shortest_dists before calling this.
+        '''
+        
+        temp_path = []
         current_pose = self.current_pose
+        destination = self.destination
 
-        while (self.path[current_pose[0]][current_pose[1]] != 0):
-            temp_path[current_pose[0]][current_pose[1]] = self.path[current_pose[0]][current_pose[1]]
+        while current_pose != destination:
+            temp_path.append(current_pose)
             current_pose = self.get_next_node(current_pose)
 
-        self.path = temp_path
-        self.algorithm = "a_star"
+        self.path = np.array(temp_path)
 
     
 
-    def compute_path_dijstra(self):
-        self.algorithm = "dijstra"
+    def compute_shortest_dists_dijkstra(self):
+        self.algorithm = "dijkstra"
         checked = [self.destination]
         unchecked = self.get_adjacent(self.destination)
-        self.path = np.zeros(shape=self.map.shape) - 1
-        self.path[self.destination[0], self.destination[1]] = 0
+        self.shortest_dists = np.zeros(shape=self.map.shape) - 1
+        self.shortest_dists[self.destination[0], self.destination[1]] = 0
         
         # self.path[:20, :40] = 0
         
@@ -219,19 +212,19 @@ class PathFinding:
         # plt.show()
         
         for i in unchecked:
-             self.path[i[0]][i[1]] = 1
+             self.shortest_dists[i[0]][i[1]] = 1
         while len(unchecked) != 0:
             tempUnchecked = []
             for i in unchecked:
                 for j in self.get_adjacent(i):
-                    if self.path[j[0]][j[1]] == -1 and self.map[j[0]][j[1]] == 1:
+                    if self.shortest_dists[j[0]][j[1]] == -1 and self.map[j[0]][j[1]] == 1:
                         tempUnchecked.append(j)
-                        self.path[j[0]][j[1]] = self.path[i[0]][i[1]] + 1
+                        self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + 1
                 checked.append(i)
             unchecked = tempUnchecked
     
     def at_destination(self):
-        return self.path[self.current_pose[0]][self.current_pose[1]] < self.bound and self.path[self.current_pose[0]][self.current_pose[1]] != -1
+        return self.shortest_dists[self.current_pose[0]][self.current_pose[1]] < self.bound and self.shortest_dists[self.current_pose[0]][self.current_pose[1]] != -1
      
 
 
@@ -252,7 +245,7 @@ def rvizify_array(array):
     arr_copy = np.flip(arr_copy, axis=1)
     return arr_copy
     
-def rivizify_indices(x, y):
+def rvizify_indices(x, y):
     return -y + 384, x
 
     
@@ -271,11 +264,15 @@ def demo_visualize_closestMap(self):
     
     # plt.imshow(rvizify_array(self.pathFinder.map), cmap='hot', interpolation='nearest', origin="lower")
     
+    pathxs = self.pathFinder.path[:, 0]
+    pathys = self.pathFinder.path[:, 1]
+    pathxs, pathys = rvizify_indices(pathxs, pathys)
+    plt.plot(pathxs, pathys, "b-")
     
-    # plt.imshow(rvizify_array(self.pathFinder.path), cmap='hot', interpolation='nearest', origin="lower")
-    
-    x, y = rivizify_indices(274, 247)
-    plt.plot(x, y, "go")
+    xstart, ystart = rvizify_indices(274, 247)
+    xdest, ydest = rvizify_indices(214, 204)
+    plt.plot(xstart, ystart, "go")
+    plt.plot(xdest, ydest, "go")
     plt.show()
     exit(0)
         
@@ -369,8 +366,8 @@ class ParticleFilter:
         # plt.show()
         
         
-        # self.pathFinder = PathFinding(self.aStarPathMap,start=(247,274),destination=(204,214) ,algorithm="a_star")
-        self.pathFinder = PathFinding(self.aStarPathMap, start=(274,247), destination=(214,204) ,algorithm="a_star")
+        self.pathFinder = PathFinding(self.aStarPathMap, start=(274,247), destination=(214,204) ,algorithm="dijkstra")
+        self.pathFinder.compute_shortest_dists()
         self.pathFinder.compute_path()
         print("THEREs")
         # our addition:

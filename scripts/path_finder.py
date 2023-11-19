@@ -1,4 +1,3 @@
-
 class PathFinding:
 
     def __init__(self, map, start, destination, bound=4):
