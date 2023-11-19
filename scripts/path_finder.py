@@ -37,7 +37,7 @@ class PathFinding:
                     d = lambda x : math.hypot(nodes[i][0]-x,nodes[i][1] - (slope * x) - offset)
                     z = (nodes[i][0] + (slope * (nodes[i][1] - offset)))/(1 + pow(slope,2))
                     distances[i] = d(z) < epsilon
-        return self.get_translation_vector(nodes[-1])
+        return self.get_translation_vector(nodes[-1]), nodes[-1]
 
     def find_nearest_non_negative(self, node=None):
         if node is None:

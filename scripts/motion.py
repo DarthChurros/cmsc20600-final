@@ -5,6 +5,18 @@ import time
 import numpy as np
 import sympy as s
 
+from geometry_msgs.msg import Pose, PoseStamped
+from std_msgs.msg import Header
+
+def to_rviz_coords(self, ind_x, ind_y):
+    map_res = self.map.info.resolution
+    pos_x = self.map.info.origin.position.x
+    pos_y = self.map.info.origin.position.y
+    
+    x = (ind_x * map_res) + pos_x
+    y = (ind_y * map_res) + pos_y
+    return x, y
+
 
 def halt(publisher):
     '''Halts the robot. i.e. publishes a 0 Twist to cmd_vel'''
@@ -27,10 +39,39 @@ def wrapto_pi(angle):
 
 
 
+# enable naive debug to see the next node and next_yaw
+enable_naive_debug = False
+
+def init_pose(pose: Pose, x, y, yaw):
+    # pose.position = Point()
+    pose.position.x = x
+    pose.position.y = y
+    pose.position.z = 0
+    # Need to convert yaw to quaternion
+    quat = quaternion_from_euler(0,0, yaw)
+    pose.orientation.x = quat[0]
+    pose.orientation.y = quat[1]
+    pose.orientation.z = quat[2]
+    pose.orientation.w = quat[3]
+
+
+
+
 class Motion:
+    def publish_pose(self, pose: Pose):
+        pose_stamped = PoseStamped()
+        pose_stamped.pose = pose
+        pose_stamped.header = Header(stamp=rospy.Time.now(), frame_id="map")
+        self.robot_estimate_pub.publish(pose_stamped)
+        
+    
+    
     def __init__(self, approach, init_info):    
         self.pub_cmd_vel = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
         rospy.on_shutdown(lambda : halt(self.pub_cmd_vel))
+        
+        if enable_naive_debug:
+            self.robot_estimate_pub = rospy.Publisher("estimated_robot_pose", PoseStamped, queue_size=10)
         
         if approach == "naive":
             self.move = self.move_naive
@@ -160,19 +201,26 @@ class Motion:
 
         print("distance:",pf.pathFinder.shortest_dists[tempx][tempy])
                 
-        next_node = pf.pathFinder.naive_path_finder(0.05/map_res)
+        move_vector, next_node = pf.pathFinder.naive_path_finder(0.05/map_res)
                 
 
-        next_node = ((next_node[0] * map_res), (next_node[1] * map_res))
+        # next_node = ((next_node[0] * map_res), (next_node[1] * map_res))
+        next_yaw = np.arctan2(move_vector[1],move_vector[0])
         
+        if enable_naive_debug:
+            next_pose = Pose()
+            print(move_vector)
+            nextx, nexty = to_rviz_coords(pf, next_node[0], next_node[1])
+            init_pose(next_pose, nextx, nexty, next_yaw)
+            self.publish_pose(next_pose)
 
         error = 0.25
-        ang_vel = np.arctan2(next_node[1],next_node[0]) - get_yaw_from_pose(pf.robot_estimate)
+        ang_vel = next_yaw - get_yaw_from_pose(pf.robot_estimate)
         lin_vel =  2*map_res * pow((1 + np.cos(ang_vel))/2,20)
-        if(next_node[0] == next_node[1]):
+        if(move_vector[0] == move_vector[1]):
             ang_vel = 0
             lin_vel = -0.1
-        self.pub_cmd_vel.publish(Twist(linear=Vector3(error * 8 * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))    
+        self.pub_cmd_vel.publish(Twist(linear=Vector3(error * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))    
         
         return
 
@@ -187,16 +235,16 @@ class Motion:
 
         print("distance:",self.pathFinder.path[tempx][tempy])
                 
-        next_node = self.pathFinder.naive_path_finder(0.05/map_res)
+        move_vector = self.pathFinder.naive_path_finder(0.05/map_res)
                 
 
-        next_node = ((next_node[0] * map_res), (next_node[1] * map_res))
+        move_vector = ((move_vector[0] * map_res), (move_vector[1] * map_res))
         
 
         error = 0.25
-        ang_vel = np.arctan2(next_node[1],next_node[0]) - get_yaw_from_pose(self.robot_estimate)
+        ang_vel = np.arctan2(move_vector[1],move_vector[0]) - get_yaw_from_pose(self.robot_estimate)
         lin_vel =  2*map_res * pow((1 + np.cos(ang_vel))/2,20)
-        if(next_node[0] == next_node[1]):
+        if(move_vector[0] == move_vector[1]):
             ang_vel = 0
             lin_vel = -0.1
         self.pub_cmd_vel.publish(Twist(linear=Vector3(error * 8 * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))
