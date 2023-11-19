@@ -145,7 +145,7 @@ class PathFinding:
 
     def compute_path(self):
         if self.algorithm == "dijstra":
-            self.computer_path_dijstra()
+            self.compute_path_dijstra()
         elif self.algorithm == "a_star":
             self.compute_path_a_star()
         else:
@@ -190,7 +190,7 @@ class PathFinding:
 
     
 
-    def computer_path_dijstra(self):
+    def compute_path_dijstra(self):
         self.algorithm = "dijstra"
         checked = [self.destination]
         unchecked = self.get_adjacent(self.destination)
