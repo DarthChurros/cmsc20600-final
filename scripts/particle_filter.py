@@ -224,12 +224,24 @@ class Particle:
         self.w = w
 
 
-def demo_visualize_closestMap(closestMap):
+def demo_visualize_closestMap(self):
     '''
-    Demo: plots the closestMap as a heat map in matplotlib and exits.
+    Demo: plots the closestMap (or whatever you want) as a heat map in matplotlib and exits.
     '''
     import matplotlib.pyplot as plt
-    plt.imshow(closestMap, cmap='hot', interpolation='nearest')
+    # closestMap = np.array(self.closestMap)
+    # cutoff = 0.6
+    # closestMap[closestMap >= cutoff] = cutoff
+    # plt.imshow(closestMap, cmap='hot', interpolation='nearest', origin="lower")
+    
+    
+    # plt.imshow(self.pathFinder.map, cmap='hot', interpolation='nearest', origin="lower")
+    
+    
+    plt.imshow(self.pathFinder.path, cmap='hot', interpolation='nearest', origin="lower")
+    
+    plt.plot(247, 274, "go")
+    plt.plot()
     plt.show()
     exit(0)
         
@@ -306,7 +318,7 @@ class ParticleFilter:
         # our addition:
         if (enable_closestMap_viz_demo):
             # demo_visualize_closestMap(self.closestMap) # input the whole cloestMap
-            demo_visualize_closestMap(np.array(self.pathFinder.map))
+            demo_visualize_closestMap(self)
             # demo_visualize_closestMap(np.array(self.pathFinder.path))
 
         # the number of particles used in the particle filter
