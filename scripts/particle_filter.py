@@ -246,24 +246,36 @@ class Particle:
         self.w = w
 
 
+def rvizify_array(array):
+    assert (array.shape == (384, 384))
+    arr_copy = np.copy(array)
+    arr_copy = np.flip(arr_copy, axis=1)
+    return arr_copy
+    
+def rivizify_indices(x, y):
+    return -y + 384, x
+
+    
+
 def demo_visualize_closestMap(self):
     '''
     Demo: plots the closestMap (or whatever you want) as a heat map in matplotlib and exits.
     '''
     import matplotlib.pyplot as plt
-    # closestMap = np.array(self.closestMap)
-    # cutoff = 0.6
-    # closestMap[closestMap >= cutoff] = cutoff
-    # plt.imshow(closestMap, cmap='hot', interpolation='nearest', origin="lower")
+    closestMap = np.array(self.closestMap)
+    cutoff = 0.6
+    closestMap[closestMap >= cutoff] = cutoff
+    rvizified_closestMap = rvizify_array(closestMap)
+    plt.imshow(rvizified_closestMap, cmap='hot', interpolation='nearest', origin="lower")
     
     
-    # plt.imshow(self.pathFinder.map, cmap='hot', interpolation='nearest', origin="lower")
+    # plt.imshow(rvizify_array(self.pathFinder.map), cmap='hot', interpolation='nearest', origin="lower")
     
     
-    plt.imshow(self.pathFinder.path, cmap='hot', interpolation='nearest', origin="lower")
+    # plt.imshow(rivizify_indices(self.pathFinder.path), cmap='hot', interpolation='nearest', origin="lower")
     
-    plt.plot(247, 274, "go")
-    plt.plot()
+    x, y = rivizify_indices(274, 247)
+    plt.plot(x, y, "go")
     plt.show()
     exit(0)
         
