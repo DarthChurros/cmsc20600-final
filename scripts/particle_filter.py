@@ -272,7 +272,7 @@ def demo_visualize_closestMap(self):
     # plt.imshow(rvizify_array(self.pathFinder.map), cmap='hot', interpolation='nearest', origin="lower")
     
     
-    # plt.imshow(rivizify_indices(self.pathFinder.path), cmap='hot', interpolation='nearest', origin="lower")
+    # plt.imshow(rvizify_array(self.pathFinder.path), cmap='hot', interpolation='nearest', origin="lower")
     
     x, y = rivizify_indices(274, 247)
     plt.plot(x, y, "go")
