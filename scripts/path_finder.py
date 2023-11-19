@@ -1,12 +1,17 @@
-class PathFinding:
+import numpy as np
+import math
 
-    def __init__(self, map, start, destination, bound=4):
-        self.algorithm = "dijstra"
+class PathFinding:
+    
+    def __init__(self, map, start, destination, algorithm="dijkstra", bound=4):
+        self.algorithm = algorithm
         self.map = map
-        self.path = []
+        self.shortest_dists = None
         self.current_pose = start
         self.destination = destination
         self.bound = bound
+        
+        self.path = None
 
     #sets the postition of the robot
     def update_pose(self, pose):
@@ -20,7 +25,7 @@ class PathFinding:
             nodes.append(next_node)
             distances.append(True)
             next_node = self.get_next_node(next_node)
-            if self.path[next_node[0]][next_node[1]] < self.bound:
+            if self.shortest_dists[next_node[0]][next_node[1]] < self.bound:
                 break
             elif (next_node[0] - self.current_pose[0] == 0):
                 for i in range(len(nodes)):
@@ -45,9 +50,9 @@ class PathFinding:
             tempUnchecked = []
             for i in unchecked:
                 for j in self.get_adjacent(i):
-                    if self.path[j[0]][j[1]] == -1 and not (j in checked or j in tempUnchecked):
+                    if self.shortest_dists[j[0]][j[1]] == -1 and not (j in checked or j in tempUnchecked):
                         tempUnchecked.append(j)
-                    elif self.path[j[0]][j[1]] != -1:
+                    elif self.shortest_dists[j[0]][j[1]] != -1:
                         return j
                 checked.append(i)
             unchecked = tempUnchecked
@@ -58,11 +63,11 @@ class PathFinding:
         if node is None:
             node = self.current_pose
     
-        if self.algorithm == "dijstra":
+        if self.algorithm == "dijkstra":
             adjacent = self.get_adjacent(node)
             min = 0
             for i in range(len(adjacent)):
-                if (self.path[adjacent[min][0]][adjacent[min][1]] == -1) or ((self.path[adjacent[i][0]][adjacent[i][1]] != -1) and (self.path[adjacent[i][0]][adjacent[i][1]] < self.path[adjacent[min][0]][adjacent[min][1]])):
+                if (self.shortest_dists[adjacent[min][0]][adjacent[min][1]] == -1) or ((self.shortest_dists[adjacent[i][0]][adjacent[i][1]] != -1) and (self.shortest_dists[adjacent[i][0]][adjacent[i][1]] < self.shortest_dists[adjacent[min][0]][adjacent[min][1]])):
                     min = i
 
             return adjacent[min]
@@ -71,20 +76,22 @@ class PathFinding:
         else:
             return None       
 
-    def compute_path(self):
-        if self.algorithm == "dijstra":
-            self.computer_path_dijstra()
+    def compute_shortest_dists(self):
+        if self.algorithm == "dijkstra":
+            self.compute_shortest_dists_dijkstra()
         elif self.algorithm == "a_star":
-            self.compute_path_a_star()
+            assert(False)
+            # TODO!!!
         else:
             return
 
     #returns the vector that coresponds to the direction the robot should move in world coordinates.
-    def get_translation_vector(self, next_node=None):
-        if next_node is None:
+    def get_translation_vector(self, node=None):
+        next_node = node
+        if node is None:
             next_node = self.get_next_node()
 
-        if self.path[self.current_pose[0]][self.current_pose[1]] == -1 and self.path[next_node[0]][next_node[1]] == -1:
+        if self.shortest_dists[self.current_pose[0]][self.current_pose[1]] == -1 and self.shortest_dists[next_node[0]][next_node[1]] == -1:
             next_node = self.find_nearest_non_negative(self.current_pose) 
 
         translation = (-self.current_pose[0] + next_node[0], - self.current_pose[1] + next_node[1])
@@ -102,38 +109,49 @@ class PathFinding:
                 adjacent_nodes.append((node[0] + i[0],node[1] + i[1]))
         return adjacent_nodes
 
-    def compute_path_a_star(self):
-        self.algorithm = "dijstra"
-        self.compute_path_a_star()
-        temp_path = self.path = [[-1]*len(self.map[0]) for i in range(len(self.map))]
+    def compute_path(self):
+        '''
+        Must call compute_shortest_dists before calling this.
+        '''
+        
+        temp_path = []
         current_pose = self.current_pose
+        destination = self.destination
 
-        while (self.path[current_pose[0]][current_pose[1]] != 0):
-            temp_path[current_pose[0]][current_pose[1]] = self.path[current_pose[0]][current_pose[1]]
-            curr_pose = self.get_next_node()
+        while current_pose != destination:
+            temp_path.append(current_pose)
+            current_pose = self.get_next_node(current_pose)
 
-        self.path = temp_path
-        self.algorithm = "a_star"
+        self.path = np.array(temp_path)
 
     
 
-    def computer_path_dijstra(self):
-        self.algorithm = "dijstra"
+    def compute_shortest_dists_dijkstra(self):
+        self.algorithm = "dijkstra"
         checked = [self.destination]
         unchecked = self.get_adjacent(self.destination)
-        self.path = [[-1]*len(self.map[0]) for i in range(len(self.map))]
+        self.shortest_dists = np.zeros(shape=self.map.shape) - 1
+        self.shortest_dists[self.destination[0], self.destination[1]] = 0
+        
+        # self.path[:20, :40] = 0
+        
+        # import matplotlib.pyplot as plt
+        # print("combinati")
+        # plt.imshow(self.path, cmap='hot', interpolation='nearest', origin="lower")
+        # plt.plot(self.destination[0], self.destination[1], "go")
+        # plt.show()
+        
         for i in unchecked:
-             self.path[i[0]][i[1]] = 1
+             self.shortest_dists[i[0]][i[1]] = 1
         while len(unchecked) != 0:
             tempUnchecked = []
             for i in unchecked:
                 for j in self.get_adjacent(i):
-                    if self.path[j[0]][j[1]] == -1 and self.map[j[0]][j[1]] == 1:
+                    if self.shortest_dists[j[0]][j[1]] == -1 and self.map[j[0]][j[1]] == 1:
                         tempUnchecked.append(j)
-                        self.path[j[0]][j[1]] = self.path[i[0]][i[1]] + 1
+                        self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + 1
                 checked.append(i)
             unchecked = tempUnchecked
     
     def at_destination(self):
-        return self.path[self.current_pose[0]][self.current_pose[1]] < self.bound and self.path[self.current_pose[0]][self.current_pose[1]] != -1
-     
+        return self.shortest_dists[self.current_pose[0]][self.current_pose[1]] < self.bound and self.shortest_dists[self.current_pose[0]][self.current_pose[1]] != -1
