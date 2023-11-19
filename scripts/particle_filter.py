@@ -135,10 +135,11 @@ class PathFinding:
         if node is None:
             node = self.current_pose
 
+        current_pose = node
         path = [node]
         while (self.path[current_pose[0]][current_pose[1]] != 0):
             current_pose = self.get_next_node(current_pose)
-            path.append(node)
+            path.append(current_pose)
 
         return path
 
