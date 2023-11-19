@@ -687,6 +687,10 @@ class ParticleFilter:
 
         robot_pose_estimate_stamped = PoseStamped()
         robot_pose_estimate_stamped.pose = self.robot_estimate
+        # pose = Pose()
+        # x,y = self.to_rviz_coords(274, 247)
+        # init_pose(pose, x, y, 0)
+        # robot_pose_estimate_stamped.pose = pose
         robot_pose_estimate_stamped.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
         self.robot_estimate_pub.publish(robot_pose_estimate_stamped)
         
