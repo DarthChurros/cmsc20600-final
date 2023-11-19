@@ -178,7 +178,7 @@ class PathFinding:
     def compute_path_a_star(self):
         self.algorithm = "dijstra"
         self.compute_path()
-        temp_path = [[-1]*len(self.map[0]) for i in range(len(self.map))]
+        temp_path =  np.zeros(shape=self.map.shape) - 1
         current_pose = self.current_pose
 
         while (self.path[current_pose[0]][current_pose[1]] != 0):
@@ -194,8 +194,17 @@ class PathFinding:
         self.algorithm = "dijstra"
         checked = [self.destination]
         unchecked = self.get_adjacent(self.destination)
-        self.path = [[-1]*len(self.map[0]) for i in range(len(self.map))]
-        self.path[self.destination[0]][self.destination[1]] = 0
+        self.path = np.zeros(shape=self.map.shape) - 1
+        self.path[self.destination[0], self.destination[1]] = 0
+        
+        # self.path[:20, :40] = 0
+        
+        # import matplotlib.pyplot as plt
+        # print("combinati")
+        # plt.imshow(self.path, cmap='hot', interpolation='nearest', origin="lower")
+        # plt.plot(self.destination[0], self.destination[1], "go")
+        # plt.show()
+        
         for i in unchecked:
              self.path[i[0]][i[1]] = 1
         while len(unchecked) != 0:
@@ -311,8 +320,32 @@ class ParticleFilter:
         # load closestMap array
         self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
         self.aStarPathMap = np.vectorize(lambda x: (1 if x > 0.155 and x < 0.6 else 0))(self.closestMap)
+        astarmap = np.zeros(shape=self.closestMap.shape)
+        occupiable = (self.closestMap > 0.155) & (self.closestMap < 0.6)
+        astarmap[occupiable] = 1
+        self.aStarPathMap = astarmap
         
-        self.pathFinder = PathFinding(self.aStarPathMap,(274,248),(218,216) ,algorithm="a_star")
+        
+        # assert(np.array_equal(self.aStarPathMap, astarmap))
+        
+        # import matplotlib.pyplot as plt
+        # fig, axs = plt.subplots(ncols=2, figsize=(8, 4))
+        
+        # closestMap = self.closestMap
+        # closestMap[closestMap >= 0.6] = 0.6
+        
+        # closestMap[[0, 10, 20, 30, 40, 50], :] = 0
+        # closestMap[247:258, 274:285] = 0
+        
+        # axs[0].imshow(closestMap, cmap='hot', interpolation='nearest', origin='lower')
+        # axs[1].imshow(astarmap, cmap='hot', interpolation='nearest', origin='lower')
+        # axs[1].plot(204, 214, "ro")
+        # axs[1].plot(247, 274, "go")
+        # plt.show()
+        
+        
+        # self.pathFinder = PathFinding(self.aStarPathMap,start=(247,274),destination=(204,214) ,algorithm="a_star")
+        self.pathFinder = PathFinding(self.aStarPathMap, start=(274,247), destination=(214,204) ,algorithm="a_star")
         self.pathFinder.compute_path()
         print("THEREs")
         # our addition:
