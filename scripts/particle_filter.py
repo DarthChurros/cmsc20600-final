@@ -58,6 +58,19 @@ def gaussian_scalars(stdev, n):
     return np.random.normal(loc=0, scale=stdev, size=n)
 
 
+def init_pose(pose: Pose, x, y, yaw):
+    # pose.position = Point()
+    pose.position.x = x
+    pose.position.y = y
+    pose.position.z = 0
+    # Need to convert yaw to quaternion
+    quat = quaternion_from_euler(0,0, yaw)
+    pose.orientation.x = quat[0]
+    pose.orientation.y = quat[1]
+    pose.orientation.z = quat[2]
+    pose.orientation.w = quat[3]
+
+
 class PathFinding:
 
     def __init__(self, map, start, destination, algorithm="dijstra", bound=4):
@@ -491,17 +504,8 @@ class ParticleFilter:
             # get particle pointer
             pcle = self.particle_cloud[i]
             
-            # update position of particle
-            pcle.pose.position.x = self.poses[0, i] # poses[0, i] = x_i
-            pcle.pose.position.y = self.poses[1, i] # poses[0, i] = y_i
-            # z position should not change, therefore it needs no update
-            
-            # update orientation of particle
-            new_q = quaternion_from_euler(0, 0, self.yaws[i])
-            pcle.pose.orientation.x = new_q[0]
-            pcle.pose.orientation.y = new_q[1]
-            pcle.pose.orientation.z = new_q[2]
-            pcle.pose.orientation.w = new_q[3]
+            # update position and orientation of particle
+            init_pose(pcle.pose, self.poses[0, i], self.poses[1, i], self.yaws[i])
             
             # update weight of particle
             pcle.w = self.weights[i]
@@ -898,15 +902,7 @@ class ParticleFilter:
         pose = self.robot_estimate
         # pose.position = Point()
         with self.robot_estimate_cv:
-            pose.position.x = av_x
-            pose.position.y = av_y
-            pose.position.z = 0
-            # Need to convert yaw to quaternion
-            quat = quaternion_from_euler(0,0,av_yaw)
-            pose.orientation.x = quat[0]
-            pose.orientation.y = quat[1]
-            pose.orientation.z = quat[2]
-            pose.orientation.w = quat[3]
+            init_pose(pose, av_x, av_y, av_yaw)
             
             self.robot_estimate_set = True
             self.robot_estimate_updated = True
