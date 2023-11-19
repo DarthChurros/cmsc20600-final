@@ -900,6 +900,7 @@ class ParticleFilter:
         
         # Update current robot pose to computed averages
         pose = self.robot_estimate
+        print("curr indices:", self.to_closestMap_indices(pose.position.x, pose.position.y))
         # pose.position = Point()
         with self.robot_estimate_cv:
             init_pose(pose, av_x, av_y, av_yaw)
@@ -908,6 +909,25 @@ class ParticleFilter:
             self.robot_estimate_updated = True
             self.robot_estimate_cv.notify_all()
         return
+    
+    def to_closestMap_indices(self, x, y):
+        map_res = self.map.info.resolution
+        pos_x = self.map.info.origin.position.x
+        pos_y = self.map.info.origin.position.y
+        
+        ind_x = int(((x - pos_x)/map_res))
+        ind_y = int(((y - pos_y)/map_res))
+        return ind_x, ind_y
+
+    def to_rviz_coords(self, ind_x, ind_y):
+        map_res = self.map.info.resolution
+        pos_x = self.map.info.origin.position.x
+        pos_y = self.map.info.origin.position.y
+        
+        x = (ind_x * map_res) + pos_x
+        y = (ind_y * map_res) + pos_y
+        return x, y
+        
 
 
     def update_particle_weights_with_measurement_model(self, data):
