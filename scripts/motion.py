@@ -8,6 +8,9 @@ import sympy as s
 from geometry_msgs.msg import Pose, PoseStamped
 from std_msgs.msg import Header
 
+import scipy
+from scipy.interpolate import splprep, splev
+
 def to_rviz_coords(self, ind_x, ind_y):
     map_res = self.map.info.resolution
     pos_x = self.map.info.origin.position.x
@@ -40,7 +43,7 @@ def wrapto_pi(angle):
 
 
 # enable naive debug to see the next node and next_yaw
-enable_naive_debug = False
+enable_naive_debug = True
 
 def init_pose(pose: Pose, x, y, yaw):
     # pose.position = Point()
@@ -80,6 +83,11 @@ class Motion:
             
         if approach == "parametric":
             self.move = self.move_parametric
+            tck = init_info[0]
+            self.tck = tck
+            
+            self.curr_t = 0
+            return
             
             t_var, x_func, y_func = init_info
             print("t_var", t_var)
@@ -116,73 +124,54 @@ class Motion:
         curr_y = curr_pose.position.y
         curr_yaw = get_yaw_from_pose(curr_pose)
         curr_pose_updated = False
+        
+        # start=time.time()
+        
+        def distance_to_curve(point, tck):
+            x, y = point
             
-        is_approx = True
-        
-        t_var = self.t_var
-        x_lam = self.x_lam
-        y_lam = self.y_lam
-        xp_func = self.yp_func
-        yp_func = self.yp_func
-        xp_lam = self.xp_lam
-        yp_lam = self.yp_lam
-        a_var = self.a_var
-        b_var = self.b_var
-        d_func = self.d_func
-        dp_func = self.dp_func
-        curr_t = self.curr_t
-        
-        start=time.time()
-        d_curr = d_func.subs(a_var, curr_x).subs(b_var, curr_y)
-        dp_curr = dp_func.subs(a_var, curr_x).subs(b_var, curr_y)
+            def objective(t):
+                curve_point = splev(t, self.tck)
+                dist = np.sqrt((x - curve_point[0])**2 + (y - curve_point[1])**2)
+                return dist
 
-        if not is_approx:
-            # roots = s.Poly(dp, x).nroots()
-            roots = s.real_roots(dp_curr, t_var)
-            t = min(roots, key = lambda r : d_curr.subs(t_var, r).evalf())
-            clos_x_sym = x_lam(t)
-            clos_y_sym = y_lam(t)
-            
-            clos_x = clos_x_sym.evalf()
-            clos_y = clos_y_sym.evalf()
-            
-            curve_x = xp_func.subs(t_var, clos_x_sym).evalf()
-            curve_y = yp_func.subs(t_var, clos_x_sym).evalf()
-            
-        else:
-            from scipy.optimize import minimize_scalar
-            d_curr_lam = s.lambdify(t_var, d_curr, "numpy")
-            
-            # 0.01 gives a sense of urgency; always pick at least slightly further along the curve
-            result = minimize_scalar(d_curr_lam, bounds=(curr_t + 0.01, curr_t + 1), method='bounded')
-            t = result.x
-            print("t: ", t)
-        
-            clos_x = x_lam(t)
-            clos_y = y_lam(t)
-        
-            curve_x = xp_lam(t)
-            curve_y = yp_lam(t)
-            
-            self.curr_t = t
-            
-            corr_weight = np.e ** (100 * np.hypot(clos_x - curr_x, clos_y - curr_y)) - 1
-            corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * 16
-            curve_vel = np.array([curve_x, curve_y]) * 8
-            total_vel = (corr_vel + curve_vel).astype(float)
-            # np.dot()
-            target_yaw = np.arctan2(total_vel[1], total_vel[0])
-            ang_error = wrapto_pi(target_yaw - curr_yaw)
-            pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y))
-            print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
+            result = scipy.optimize.minimize_scalar(objective, bounds=(self.curr_t, self.curr_t + 0.01), method="bounded")
+            return result.x
 
             
-            # print("time: ", time.time() - start)
-            
-            # lin_error = absolute_cutoff(dist + 0.4, limit=1) * (abs(ang_error) / np.pi - 1) ** 12
-            lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 16
+        tck = self.tck
+        t = distance_to_curve((curr_x, curr_y), tck)
+        self.curr_t = t
         
-        self.pub_cmd_vel.publish(Twist(linear=Vector3(0.5 * lin_error,0,0),angular=Vector3(0,0,0.5 * ang_error)))
+        closest_point_on_curve = splev(t, tck)
+        derivative_of_closest_point = splev(t, tck, der=1)
+        
+        clos_x = closest_point_on_curve[0]
+        clos_y = closest_point_on_curve[1]
+        curve_x = derivative_of_closest_point[0]
+        curve_y = derivative_of_closest_point[1]
+        
+        
+        corr_weight = np.e ** (100 * np.hypot(clos_x - curr_x, clos_y - curr_y)) - 1
+        corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * corr_weight
+        curve_vel = np.array([curve_x, curve_y])
+        total_vel = (corr_vel + curve_vel).astype(float)
+        
+        if enable_naive_debug:
+            next_pose = Pose()
+            init_pose(next_pose, clos_x, clos_y, np.arctan2(total_vel[1], total_vel[0]))
+            self.publish_pose(next_pose)
+
+        target_yaw = np.arctan2(total_vel[1], total_vel[0])
+        ang_error = wrapto_pi(target_yaw - curr_yaw)
+        pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y))
+        print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
+
+            
+        # print("time: ", time.time() - start)
+        lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 16
+        
+        self.pub_cmd_vel.publish(Twist(linear=Vector3(0.2 * lin_error,0,0),angular=Vector3(0,0,ang_error)))
         
 
     def move_naive(self, pf):

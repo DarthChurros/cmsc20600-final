@@ -189,9 +189,8 @@ class ParticleFilter:
         print("HERE")
         # load closestMap array
         self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
-        self.aStarPathMap = np.vectorize(lambda x: (1 if x > 0.155 and x < 0.6 else 0))(self.closestMap)
         astarmap = np.zeros(shape=self.closestMap.shape)
-        occupiable = (self.closestMap > 0.155) & (self.closestMap < 0.6)
+        occupiable = (self.closestMap >= 0.155) & (self.closestMap < 0.6)
         astarmap[occupiable] = 1
         self.aStarPathMap = astarmap
         
@@ -312,8 +311,21 @@ class ParticleFilter:
         self.robot_estimate_updated = False
         self.robot_estimate_cv = threading.Condition()
 
+        while not self.map_set:
+            time.sleep(0.1)
+        
+        from scipy.interpolate import splprep, splev
+        map_res = self.map.info.resolution
+        pos_x = self.map.info.origin.position.x
+        pos_y = self.map.info.origin.position.y
+        
+        
+        pathxs = self.pathFinder.path[:, 0] * map_res + pos_x
+        pathys = self.pathFinder.path[:, 1] * map_res + pos_y
+        tck, u = splprep([pathxs, pathys], k=1,s=0)
+
         # the motion handler
-        self.motion = Motion(approach="parametric", init_info=(t_var, x_func, y_func))
+        self.motion = Motion(approach="parametric", init_info=(tck,))
         # self.motion = Motion(approach="naive", init_info=None)
         
         # initialize shutdown callback
@@ -745,7 +757,7 @@ class ParticleFilter:
                     rospy.signal_shutdown("got bored")            
 
                 start = time.time()
-                self.motion.move(self)
+                self.motion.move(self.robot_estimate)
                 print("move:", time.time()-start)         
 
                 self.odom_pose_last_motion_update = self.odom_pose
