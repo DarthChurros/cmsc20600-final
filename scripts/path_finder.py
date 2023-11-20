@@ -167,7 +167,10 @@ class PathFinding:
             return (translation[0]/hy,translation[1]/hy)
     
     def get_adjacent(self, node):
-        borders = [(-1,0),(0,1),(1,0),(0,-1)]
+        # borders without diagonals
+        # borders = [(-1,0),(0,1),(1,0),(0,-1)]
+        
+        borders = [(-1,0),(0,1),(1,0),(0,-1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
         adjacent_nodes = []
         for i in borders:
             if (node[0] + i[0] > -1) and (node[0] + i[0] < len(self.map)) and (node[1] + i[1] > -1) and (node[1] + i[1] < len(self.map[0])):
@@ -214,7 +217,11 @@ class PathFinding:
                 for j in self.get_adjacent(i):
                     if self.shortest_dists[j[0]][j[1]] == -1 and self.map[j[0]][j[1]] == 1:
                         tempUnchecked.append(j)
-                        self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + 1
+                        
+                        # distance update without diagonals
+                        # self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + 1
+                        
+                        self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + np.hypot(i[0]-j[0],i[1]-j[1])
                 checked.append(i)
             unchecked = tempUnchecked
     
