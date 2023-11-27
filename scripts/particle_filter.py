@@ -139,6 +139,17 @@ def visualize_curve(self):
 
 class ParticleFilter:
 
+    def publish_pose_at(self, x, y):
+        particle_cloud_pose_array = PoseArray()
+        particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
+        particle_cloud_pose_array.poses 
+        
+        newpose = Pose()
+        particle_cloud_pose_array.poses = [newpose]
+        
+        init_pose(newpose, x, y, 0)
+        self.particles_pub.publish(particle_cloud_pose_array)
+
     def demo_visualize_closestMap(self, maptype="closestMap"):
         '''
         Demo: plots the closestMap (or whatever you want) as a heat map in matplotlib and exits.
@@ -151,20 +162,21 @@ class ParticleFilter:
             closestMap[closestMap >= cutoff] = cutoff
             rvizified_closestMap = rvizify_array(closestMap)
             plt.imshow(rvizified_closestMap, cmap='hot', interpolation='nearest', origin="lower")
-        
+
         
             # plt.imshow(rvizify_array(self.pathFinder.map), cmap='hot', interpolation='nearest', origin="lower")
             
-            # arr_shape = rvizified_closestMap.shape
-            # pathxs = self.pathFinder.path[:, 0]
-            # pathys = self.pathFinder.path[:, 1]
-            # pathxs, pathys = rvizify_indices(pathxs, pathys, arr_shape)
-            # plt.plot(pathxs, pathys, "b-")
+            arr_shape = rvizified_closestMap.shape
+            pathxs = self.pathFinder.path[:, 0]
+            pathys = self.pathFinder.path[:, 1]
+            pathxs, pathys = rvizify_indices(pathxs, pathys, arr_shape)
+            plt.plot(pathxs, pathys, "b-")
+            self.pathFinder = PathFinding(self.aStarPathMap, start=(2498, 1522), destination=(1998, 1992) ,algorithm="dijkstra")
             
-            # xstart, ystart = rvizify_indices(274, 247, arr_shape)
-            # xdest, ydest = rvizify_indices(214, 204, arr_shape)
-            # plt.plot(xstart, ystart, "go")
-            # plt.plot(xdest, ydest, "go")
+            xstart, ystart = rvizify_indices(2498, 1522, arr_shape)
+            xdest, ydest = rvizify_indices(1998, 1992, arr_shape)
+            plt.plot(xstart, ystart, "go")
+            plt.plot(xdest, ydest, "go")
             plt.show()
             
             exit(0)
@@ -209,7 +221,7 @@ class ParticleFilter:
         self.closestMap = np.ascontiguousarray(np.load("new1Map.npy"))
         
         astarmap = np.zeros(shape=self.closestMap.shape)
-        occupiable = (self.closestMap >= 0.155) & (self.closestMap < 0.6)
+        occupiable = (self.closestMap >= 0.2) & (self.closestMap < 0.6)
         astarmap[occupiable] = 1
         self.aStarPathMap = astarmap
         
@@ -235,7 +247,7 @@ class ParticleFilter:
         # maze_map (start, end)
         # self.pathFinder = PathFinding(self.aStarPathMap, start=(274,247), destination=(214,204) ,algorithm="dijkstra")
         # new1 (start, end)
-        self.pathFinder = PathFinding(self.aStarPathMap, start=(2521, 2474), destination=(1998, 1992) ,algorithm="dijkstra")
+        self.pathFinder = PathFinding(self.aStarPathMap, start=(2498, 1522), destination=(1998, 1992) ,algorithm="dijkstra")
         
         self.pathFinder.compute_shortest_dists()
         self.pathFinder.compute_path()

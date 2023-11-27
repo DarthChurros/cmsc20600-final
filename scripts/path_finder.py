@@ -186,7 +186,10 @@ class PathFinding:
         current_pose = self.current_pose
         destination = self.destination
 
-        while current_pose != destination:
+        iter_limit = 10**5
+        i = 0        
+
+        while current_pose != destination and i < iter_limit:
             temp_path.append(current_pose)
             current_pose = self.get_next_node(current_pose)
 
