@@ -88,41 +88,14 @@ class Particle:
 
 
 def rvizify_array(array):
-    assert (array.shape == (384, 384))
     arr_copy = np.copy(array)
     arr_copy = np.flip(arr_copy, axis=1)
     return arr_copy
     
-def rvizify_indices(x, y):
-    return -y + 384, x
+def rvizify_indices(x, y, arr_shape):
+    return -y + arr_shape[1], x
 
     
-
-def demo_visualize_closestMap(self):
-    '''
-    Demo: plots the closestMap (or whatever you want) as a heat map in matplotlib and exits.
-    '''
-    import matplotlib.pyplot as plt
-    closestMap = np.array(self.closestMap)
-    cutoff = 0.6
-    closestMap[closestMap >= cutoff] = cutoff
-    rvizified_closestMap = rvizify_array(closestMap)
-    plt.imshow(rvizified_closestMap, cmap='hot', interpolation='nearest', origin="lower")
-    
-    
-    # plt.imshow(rvizify_array(self.pathFinder.map), cmap='hot', interpolation='nearest', origin="lower")
-    
-    pathxs = self.pathFinder.path[:, 0]
-    pathys = self.pathFinder.path[:, 1]
-    pathxs, pathys = rvizify_indices(pathxs, pathys)
-    plt.plot(pathxs, pathys, "b-")
-    
-    xstart, ystart = rvizify_indices(274, 247)
-    xdest, ydest = rvizify_indices(214, 204)
-    plt.plot(xstart, ystart, "go")
-    plt.plot(xdest, ydest, "go")
-    plt.show()
-    exit(0)
         
     
 import sympy as s
@@ -166,6 +139,48 @@ def visualize_curve(self):
 
 class ParticleFilter:
 
+    def demo_visualize_closestMap(self, maptype="closestMap"):
+        '''
+        Demo: plots the closestMap (or whatever you want) as a heat map in matplotlib and exits.
+        '''
+        import matplotlib.pyplot as plt
+        if maptype == "closestMap":
+            closestMap = self.closestMap
+            
+            cutoff = 0.6
+            closestMap[closestMap >= cutoff] = cutoff
+            rvizified_closestMap = rvizify_array(closestMap)
+            plt.imshow(rvizified_closestMap, cmap='hot', interpolation='nearest', origin="lower")
+        
+        
+            # plt.imshow(rvizify_array(self.pathFinder.map), cmap='hot', interpolation='nearest', origin="lower")
+            
+            # arr_shape = rvizified_closestMap.shape
+            # pathxs = self.pathFinder.path[:, 0]
+            # pathys = self.pathFinder.path[:, 1]
+            # pathxs, pathys = rvizify_indices(pathxs, pathys, arr_shape)
+            # plt.plot(pathxs, pathys, "b-")
+            
+            # xstart, ystart = rvizify_indices(274, 247, arr_shape)
+            # xdest, ydest = rvizify_indices(214, 204, arr_shape)
+            # plt.plot(xstart, ystart, "go")
+            # plt.plot(xdest, ydest, "go")
+            plt.show()
+            
+            exit(0)
+        
+        if maptype == "aStarMap":
+            closestMap = self.aStarPathMap
+        elif maptype == "shortest_dists":
+            closestMap = self.pathFinder.shortest_dists
+        else:
+            assert(False)
+        
+        rvizified_closestMap = rvizify_array(closestMap)
+        plt.imshow(rvizified_closestMap, cmap='hot', interpolation='nearest', origin="lower")
+        
+        plt.show()
+
 
     def __init__(self):
 
@@ -187,8 +202,12 @@ class ParticleFilter:
         self.map_set = False # whether map has been set
 
         print("HERE")
-        # load closestMap array
-        self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
+        
+        # closestMap for maze_map
+        # self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
+        # closestMap for new1
+        self.closestMap = np.ascontiguousarray(np.load("new1Map.npy"))
+        
         astarmap = np.zeros(shape=self.closestMap.shape)
         occupiable = (self.closestMap >= 0.155) & (self.closestMap < 0.6)
         astarmap[occupiable] = 1
@@ -213,16 +232,18 @@ class ParticleFilter:
         # plt.show()
         
         
-        self.pathFinder = PathFinding(self.aStarPathMap, start=(274,247), destination=(214,204) ,algorithm="dijkstra")
+        # maze_map (start, end)
+        # self.pathFinder = PathFinding(self.aStarPathMap, start=(274,247), destination=(214,204) ,algorithm="dijkstra")
+        # new1 (start, end)
+        self.pathFinder = PathFinding(self.aStarPathMap, start=(2521, 2474), destination=(1998, 1992) ,algorithm="dijkstra")
+        
         self.pathFinder.compute_shortest_dists()
         self.pathFinder.compute_path()
         self.pathFinder.reduce_path(1)
         print("THEREs")
         # our addition:
         if (enable_closestMap_viz_demo):
-            # demo_visualize_closestMap(self.closestMap) # input the whole cloestMap
-            demo_visualize_closestMap(self)
-            # demo_visualize_closestMap(np.array(self.pathFinder.path))
+            self.demo_visualize_closestMap()
 
         # the number of particles used in the particle filter
         self.find_num_particles = 10**5 # num_particles for searching/convergence
