@@ -5,6 +5,21 @@ import time
 import numpy as np
 import sympy as s
 
+from geometry_msgs.msg import Pose, PoseStamped
+from std_msgs.msg import Header
+
+import scipy
+from scipy.interpolate import splprep, splev
+
+def to_rviz_coords(self, ind_x, ind_y):
+    map_res = self.map.info.resolution
+    pos_x = self.map.info.origin.position.x
+    pos_y = self.map.info.origin.position.y
+    
+    x = (ind_x * map_res) + pos_x
+    y = (ind_y * map_res) + pos_y
+    return x, y
+
 
 def halt(publisher):
     '''Halts the robot. i.e. publishes a 0 Twist to cmd_vel'''
@@ -27,17 +42,52 @@ def wrapto_pi(angle):
 
 
 
+# enable naive debug to see the next node and next_yaw
+enable_naive_debug = True
+
+def init_pose(pose: Pose, x, y, yaw):
+    # pose.position = Point()
+    pose.position.x = x
+    pose.position.y = y
+    pose.position.z = 0
+    # Need to convert yaw to quaternion
+    quat = quaternion_from_euler(0,0, yaw)
+    pose.orientation.x = quat[0]
+    pose.orientation.y = quat[1]
+    pose.orientation.z = quat[2]
+    pose.orientation.w = quat[3]
+
+
+
+
 class Motion:
+    def publish_pose(self, pose: Pose):
+        pose_stamped = PoseStamped()
+        pose_stamped.pose = pose
+        pose_stamped.header = Header(stamp=rospy.Time.now(), frame_id="map")
+        self.robot_estimate_pub.publish(pose_stamped)
+        
+    
+    
     def __init__(self, approach, init_info):    
         self.pub_cmd_vel = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
         rospy.on_shutdown(lambda : halt(self.pub_cmd_vel))
         
+        if enable_naive_debug:
+            self.robot_estimate_pub = rospy.Publisher("estimated_robot_pose", PoseStamped, queue_size=10)
+        
         if approach == "naive":
+            self.move = self.move_naive
             
             return
             
         if approach == "parametric":
             self.move = self.move_parametric
+            tck = init_info[0]
+            self.tck = tck
+            
+            self.curr_t = 0
+            return
             
             t_var, x_func, y_func = init_info
             print("t_var", t_var)
@@ -74,77 +124,94 @@ class Motion:
         curr_y = curr_pose.position.y
         curr_yaw = get_yaw_from_pose(curr_pose)
         curr_pose_updated = False
+        
+        # start=time.time()
+        
+        def distance_to_curve(point, tck):
+            x, y = point
             
-        is_approx = True
-        
-        t_var = self.t_var
-        x_lam = self.x_lam
-        y_lam = self.y_lam
-        xp_func = self.yp_func
-        yp_func = self.yp_func
-        xp_lam = self.xp_lam
-        yp_lam = self.yp_lam
-        a_var = self.a_var
-        b_var = self.b_var
-        d_func = self.d_func
-        dp_func = self.dp_func
-        curr_t = self.curr_t
-        
-        start=time.time()
-        d_curr = d_func.subs(a_var, curr_x).subs(b_var, curr_y)
-        dp_curr = dp_func.subs(a_var, curr_x).subs(b_var, curr_y)
+            def objective(t):
+                curve_point = splev(t, self.tck)
+                dist = np.sqrt((x - curve_point[0])**2 + (y - curve_point[1])**2)
+                return dist
 
-        if not is_approx:
-            # roots = s.Poly(dp, x).nroots()
-            roots = s.real_roots(dp_curr, t_var)
-            t = min(roots, key = lambda r : d_curr.subs(t_var, r).evalf())
-            clos_x_sym = x_lam(t)
-            clos_y_sym = y_lam(t)
-            
-            clos_x = clos_x_sym.evalf()
-            clos_y = clos_y_sym.evalf()
-            
-            curve_x = xp_func.subs(t_var, clos_x_sym).evalf()
-            curve_y = yp_func.subs(t_var, clos_x_sym).evalf()
-            
-        else:
-            from scipy.optimize import minimize_scalar
-            d_curr_lam = s.lambdify(t_var, d_curr, "numpy")
-            
-            # 0.01 gives a sense of urgency; always pick at least slightly further along the curve
-            result = minimize_scalar(d_curr_lam, bounds=(curr_t + 0.01, curr_t + 1), method='bounded')
-            t = result.x
-            print("t: ", t)
-        
-            clos_x = x_lam(t)
-            clos_y = y_lam(t)
-        
-            curve_x = xp_lam(t)
-            curve_y = yp_lam(t)
-            
-            self.curr_t = t
-            
-            corr_weight = np.e ** (100 * np.hypot(clos_x - curr_x, clos_y - curr_y)) - 1
-            corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * 16
-            curve_vel = np.array([curve_x, curve_y]) * 8
-            total_vel = (corr_vel + curve_vel).astype(float)
-            # np.dot()
-            target_yaw = np.arctan2(total_vel[1], total_vel[0])
-            ang_error = wrapto_pi(target_yaw - curr_yaw)
-            pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y))
-            print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
+            result = scipy.optimize.minimize_scalar(objective, bounds=(self.curr_t, self.curr_t + 0.01), method="bounded")
+            return result.x
 
             
-            # print("time: ", time.time() - start)
-            
-            # lin_error = absolute_cutoff(dist + 0.4, limit=1) * (abs(ang_error) / np.pi - 1) ** 12
-            lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 16
+        tck = self.tck
+        t = distance_to_curve((curr_x, curr_y), tck)
+        self.curr_t = t
         
-        self.pub_cmd_vel.publish(Twist(linear=Vector3(0.5 * lin_error,0,0),angular=Vector3(0,0,0.5 * ang_error)))
+        closest_point_on_curve = splev(t, tck)
+        derivative_of_closest_point = splev(t, tck, der=1)
+        
+        clos_x = closest_point_on_curve[0]
+        clos_y = closest_point_on_curve[1]
+        curve_x = derivative_of_closest_point[0]
+        curve_y = derivative_of_closest_point[1]
+        
+        
+        corr_weight = np.e ** (100 * np.hypot(clos_x - curr_x, clos_y - curr_y)) - 1
+        corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * corr_weight
+        curve_vel = np.array([curve_x, curve_y])
+        total_vel = (corr_vel + curve_vel).astype(float)
+        
+        if enable_naive_debug:
+            next_pose = Pose()
+            init_pose(next_pose, clos_x, clos_y, np.arctan2(total_vel[1], total_vel[0]))
+            self.publish_pose(next_pose)
+
+        target_yaw = np.arctan2(total_vel[1], total_vel[0])
+        ang_error = wrapto_pi(target_yaw - curr_yaw)
+        pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y))
+        print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
+
+            
+        # print("time: ", time.time() - start)
+        lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 16
+        
+        self.pub_cmd_vel.publish(Twist(linear=Vector3(0.2 * lin_error,0,0),angular=Vector3(0,0,ang_error)))
         
 
-    def move_naive(self, curr_pose):
+    def move_naive(self, pf):
        # This is where the main logic of the particle filter is carried out
+
+        
+        pos_x = pf.map.info.origin.position.x
+        pos_y = pf.map.info.origin.position.y
+        map_res = pf.map.info.resolution
+        curr_pose = pf.robot_estimate
+        tempx = int((curr_pose.position.x - pos_x)/map_res)
+        tempy = int((curr_pose.position.y - pos_y)/map_res)
+
+
+        pf.pathFinder.update_pose((tempx,tempy))
+
+        print("distance:",pf.pathFinder.shortest_dists[tempx][tempy])
+                
+        move_vector, next_node = pf.pathFinder.naive_path_finder(0.05/map_res)
+                
+
+        # next_node = ((next_node[0] * map_res), (next_node[1] * map_res))
+        next_yaw = np.arctan2(move_vector[1],move_vector[0])
+        
+        if enable_naive_debug:
+            next_pose = Pose()
+            print(move_vector)
+            nextx, nexty = to_rviz_coords(pf, next_node[0], next_node[1])
+            init_pose(next_pose, nextx, nexty, next_yaw)
+            self.publish_pose(next_pose)
+
+        error = 0.25
+        ang_vel = next_yaw - get_yaw_from_pose(pf.robot_estimate)
+        lin_vel =  2*map_res * pow((1 + np.cos(ang_vel))/2,20)
+        if(move_vector[0] == move_vector[1]):
+            ang_vel = 0
+            lin_vel = -0.1
+        self.pub_cmd_vel.publish(Twist(linear=Vector3(error * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))    
+        
+        return
 
         pos_x = self.map.info.origin.position.x
         pos_y = self.map.info.origin.position.y
@@ -157,16 +224,16 @@ class Motion:
 
         print("distance:",self.pathFinder.path[tempx][tempy])
                 
-        next_node = self.pathFinder.naive_path_finder(0.05/map_res)
+        move_vector = self.pathFinder.naive_path_finder(0.05/map_res)
                 
 
-        next_node = ((next_node[0] * map_res), (next_node[1] * map_res))
+        move_vector = ((move_vector[0] * map_res), (move_vector[1] * map_res))
         
 
         error = 0.25
-        ang_vel = np.arctan2(next_node[1],next_node[0]) - get_yaw_from_pose(self.robot_estimate)
+        ang_vel = np.arctan2(move_vector[1],move_vector[0]) - get_yaw_from_pose(self.robot_estimate)
         lin_vel =  2*map_res * pow((1 + np.cos(ang_vel))/2,20)
-        if(next_node[0] == next_node[1]):
+        if(move_vector[0] == move_vector[1]):
             ang_vel = 0
             lin_vel = -0.1
         self.pub_cmd_vel.publish(Twist(linear=Vector3(error * 8 * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))

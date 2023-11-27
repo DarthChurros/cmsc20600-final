@@ -32,6 +32,8 @@ import copy
 
 from motion import Motion
 
+from path_finder import PathFinding
+
 # demo toggles
 enable_motion_demo = False
 enable_closestMap_viz_demo = False
@@ -58,155 +60,19 @@ def gaussian_scalars(stdev, n):
     return np.random.normal(loc=0, scale=stdev, size=n)
 
 
-class PathFinding:
+def init_pose(pose: Pose, x, y, yaw):
+    # pose.position = Point()
+    pose.position.x = x
+    pose.position.y = y
+    pose.position.z = 0
+    # Need to convert yaw to quaternion
+    quat = quaternion_from_euler(0,0, yaw)
+    pose.orientation.x = quat[0]
+    pose.orientation.y = quat[1]
+    pose.orientation.z = quat[2]
+    pose.orientation.w = quat[3]
 
-    def __init__(self, map, start, destination, algorithm="dijstra", bound=4):
-        self.algorithm = algorithm
-        self.map = map
-        self.path = []
-        self.current_pose = start
-        self.destination = destination
-        self.bound = bound
 
-    #sets the postition of the robot
-    def update_pose(self, pose):
-        self.current_pose = pose
-
-    def naive_path_finder(self, epsilon):
-        next_node = self.get_next_node()
-        nodes = []
-        distances = []
-        while(all(distances)):
-            nodes.append(next_node)
-            distances.append(True)
-            next_node = self.get_next_node(next_node)
-            if self.path[next_node[0]][next_node[1]] < self.bound:
-                break
-            elif (next_node[0] - self.current_pose[0] == 0):
-                for i in range(len(nodes)):
-                    distances[i] = abs(nodes[i][0] - next_node[0]) < epsilon
-            else:
-                slope = (next_node[1] - self.current_pose[1])/(next_node[0] - self.current_pose[0])
-                offset = (next_node[1] - (slope * next_node[0]))
-                for i in range(len(nodes)):
-                    d = lambda x : math.hypot(nodes[i][0]-x,nodes[i][1] - (slope * x) - offset)
-                    z = (nodes[i][0] + (slope * (nodes[i][1] - offset)))/(1 + pow(slope,2))
-                    distances[i] = d(z) < epsilon
-        return self.get_translation_vector(nodes[-1])
-
-    def find_nearest_non_negative(self, node=None):
-        if node is None:
-            node = self.current_pose
-
-        checked = [node]
-        unchecked = self.get_adjacent(node)
-
-        while len(unchecked) != 0:
-            tempUnchecked = []
-            for i in unchecked:
-                for j in self.get_adjacent(i):
-                    if self.path[j[0]][j[1]] == -1 and not (j in checked or j in tempUnchecked):
-                        tempUnchecked.append(j)
-                    elif self.path[j[0]][j[1]] != -1:
-                        return j
-                checked.append(i)
-            unchecked = tempUnchecked
-        return (0,0)
-        
-
-    def get_next_node(self, node=None):
-        if node is None:
-            node = self.current_pose
-    
-        if self.algorithm == "dijstra":
-            adjacent = self.get_adjacent(node)
-            min = 0
-            for i in range(len(adjacent)):
-                if (self.path[adjacent[min][0]][adjacent[min][1]] == -1) or ((self.path[adjacent[i][0]][adjacent[i][1]] != -1) and (self.path[adjacent[i][0]][adjacent[i][1]] < self.path[adjacent[min][0]][adjacent[min][1]])):
-                    min = i
-
-            return adjacent[min]
-        elif self.algorithm == "a_star":
-            return None
-        else:
-            return None       
-
-    def get_full_path(self, node=None):
-        if node is None:
-            node = self.current_pose
-
-        path = [node]
-        while (self.path[current_pose[0]][current_pose[1]] != 0):
-            current_pose = self.get_next_node(current_pose)
-            path.append(node)
-
-        return path
-
-    def compute_path(self):
-        if self.algorithm == "dijstra":
-            self.computer_path_dijstra()
-        elif self.algorithm == "a_star":
-            self.compute_path_a_star()
-        else:
-            return
-
-    #returns the vector that coresponds to the direction the robot should move in world coordinates.
-    def get_translation_vector(self, node=None):
-        next_node = node
-        if node is None:
-            next_node = self.get_next_node()
-
-        if self.path[self.current_pose[0]][self.current_pose[1]] == -1 and self.path[next_node[0]][next_node[1]] == -1:
-            next_node = self.find_nearest_non_negative(self.current_pose) 
-
-        translation = (-self.current_pose[0] + next_node[0], - self.current_pose[1] + next_node[1])
-        if translation[0] == 0 and translation[1] == 0:
-            return (0,0)
-        else:
-            hy = math.hypot(translation[0],translation[1])
-            return (translation[0]/hy,translation[1]/hy)
-    
-    def get_adjacent(self, node):
-        borders = [(-1,0),(0,1),(1,0),(0,-1)]
-        adjacent_nodes = []
-        for i in borders:
-            if (node[0] + i[0] > -1) and (node[0] + i[0] < len(self.map)) and (node[1] + i[1] > -1) and (node[1] + i[1] < len(self.map[0])):
-                adjacent_nodes.append((node[0] + i[0],node[1] + i[1]))
-        return adjacent_nodes
-
-    def compute_path_a_star(self):
-        self.algorithm = "dijstra"
-        self.compute_path()
-        temp_path = [[-1]*len(self.map[0]) for i in range(len(self.map))]
-        current_pose = self.current_pose
-
-        while (self.path[current_pose[0]][current_pose[1]] != 0):
-            temp_path[current_pose[0]][current_pose[1]] = self.path[current_pose[0]][current_pose[1]]
-            current_pose = self.get_next_node(current_pose)
-
-        self.path = temp_path
-        self.algorithm = "a_star"
-        
-    def computer_path_dijstra(self):
-        self.algorithm = "dijstra"
-        checked = [self.destination]
-        unchecked = self.get_adjacent(self.destination)
-        self.path = [[-1]*len(self.map[0]) for i in range(len(self.map))]
-        self.path[self.destination[0]][self.destination[1]] = 0
-        for i in unchecked:
-             self.path[i[0]][i[1]] = 1
-        while len(unchecked) != 0:
-            tempUnchecked = []
-            for i in unchecked:
-                for j in self.get_adjacent(i):
-                    if self.path[j[0]][j[1]] == -1 and self.map[j[0]][j[1]] == 1:
-                        tempUnchecked.append(j)
-                        self.path[j[0]][j[1]] = self.path[i[0]][i[1]] + 1
-                checked.append(i)
-            unchecked = tempUnchecked
-    
-    def at_destination(self):
-        return self.path[self.current_pose[0]][self.current_pose[1]] < self.bound and self.path[self.current_pose[0]][self.current_pose[1]] != -1
      
 
 
@@ -221,12 +87,40 @@ class Particle:
         self.w = w
 
 
-def demo_visualize_closestMap(closestMap):
+def rvizify_array(array):
+    assert (array.shape == (384, 384))
+    arr_copy = np.copy(array)
+    arr_copy = np.flip(arr_copy, axis=1)
+    return arr_copy
+    
+def rvizify_indices(x, y):
+    return -y + 384, x
+
+    
+
+def demo_visualize_closestMap(self):
     '''
-    Demo: plots the closestMap as a heat map in matplotlib and exits.
+    Demo: plots the closestMap (or whatever you want) as a heat map in matplotlib and exits.
     '''
     import matplotlib.pyplot as plt
-    plt.imshow(closestMap, cmap='hot', interpolation='nearest')
+    closestMap = np.array(self.closestMap)
+    cutoff = 0.6
+    closestMap[closestMap >= cutoff] = cutoff
+    rvizified_closestMap = rvizify_array(closestMap)
+    plt.imshow(rvizified_closestMap, cmap='hot', interpolation='nearest', origin="lower")
+    
+    
+    # plt.imshow(rvizify_array(self.pathFinder.map), cmap='hot', interpolation='nearest', origin="lower")
+    
+    pathxs = self.pathFinder.path[:, 0]
+    pathys = self.pathFinder.path[:, 1]
+    pathxs, pathys = rvizify_indices(pathxs, pathys)
+    plt.plot(pathxs, pathys, "b-")
+    
+    xstart, ystart = rvizify_indices(274, 247)
+    xdest, ydest = rvizify_indices(214, 204)
+    plt.plot(xstart, ystart, "go")
+    plt.plot(xdest, ydest, "go")
     plt.show()
     exit(0)
         
@@ -295,15 +189,39 @@ class ParticleFilter:
         print("HERE")
         # load closestMap array
         self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
-        self.aStarPathMap = np.vectorize(lambda x: (1 if x > 0.155 and x < 0.6 else 0))(self.closestMap)
+        astarmap = np.zeros(shape=self.closestMap.shape)
+        occupiable = (self.closestMap >= 0.155) & (self.closestMap < 0.6)
+        astarmap[occupiable] = 1
+        self.aStarPathMap = astarmap
         
-        self.pathFinder = PathFinding(self.aStarPathMap,(274,248),(218,216) ,algorithm="a_star")
+        
+        # assert(np.array_equal(self.aStarPathMap, astarmap))
+        
+        # import matplotlib.pyplot as plt
+        # fig, axs = plt.subplots(ncols=2, figsize=(8, 4))
+        
+        # closestMap = self.closestMap
+        # closestMap[closestMap >= 0.6] = 0.6
+        
+        # closestMap[[0, 10, 20, 30, 40, 50], :] = 0
+        # closestMap[247:258, 274:285] = 0
+        
+        # axs[0].imshow(closestMap, cmap='hot', interpolation='nearest', origin='lower')
+        # axs[1].imshow(astarmap, cmap='hot', interpolation='nearest', origin='lower')
+        # axs[1].plot(204, 214, "ro")
+        # axs[1].plot(247, 274, "go")
+        # plt.show()
+        
+        
+        self.pathFinder = PathFinding(self.aStarPathMap, start=(274,247), destination=(214,204) ,algorithm="dijkstra")
+        self.pathFinder.compute_shortest_dists()
         self.pathFinder.compute_path()
+        self.pathFinder.reduce_path(1)
         print("THEREs")
         # our addition:
         if (enable_closestMap_viz_demo):
             # demo_visualize_closestMap(self.closestMap) # input the whole cloestMap
-            demo_visualize_closestMap(np.array(self.pathFinder.map))
+            demo_visualize_closestMap(self)
             # demo_visualize_closestMap(np.array(self.pathFinder.path))
 
         # the number of particles used in the particle filter
@@ -393,8 +311,22 @@ class ParticleFilter:
         self.robot_estimate_updated = False
         self.robot_estimate_cv = threading.Condition()
 
+        while not self.map_set:
+            time.sleep(0.1)
+        
+        from scipy.interpolate import splprep, splev
+        map_res = self.map.info.resolution
+        pos_x = self.map.info.origin.position.x
+        pos_y = self.map.info.origin.position.y
+        
+        
+        pathxs = self.pathFinder.path[:, 0] * map_res + pos_x
+        pathys = self.pathFinder.path[:, 1] * map_res + pos_y
+        tck, u = splprep([pathxs, pathys], k=1,s=0)
+
         # the motion handler
-        self.motion = Motion(approach="parametric", init_info=(t_var, x_func, y_func))
+        self.motion = Motion(approach="parametric", init_info=(tck,))
+        # self.motion = Motion(approach="naive", init_info=None)
         
         # initialize shutdown callback
         rospy.on_shutdown(lambda : self.halt())
@@ -443,17 +375,8 @@ class ParticleFilter:
             # get particle pointer
             pcle = self.particle_cloud[i]
             
-            # update position of particle
-            pcle.pose.position.x = self.poses[0, i] # poses[0, i] = x_i
-            pcle.pose.position.y = self.poses[1, i] # poses[0, i] = y_i
-            # z position should not change, therefore it needs no update
-            
-            # update orientation of particle
-            new_q = quaternion_from_euler(0, 0, self.yaws[i])
-            pcle.pose.orientation.x = new_q[0]
-            pcle.pose.orientation.y = new_q[1]
-            pcle.pose.orientation.z = new_q[2]
-            pcle.pose.orientation.w = new_q[3]
+            # update position and orientation of particle
+            init_pose(pcle.pose, self.poses[0, i], self.poses[1, i], self.yaws[i])
             
             # update weight of particle
             pcle.w = self.weights[i]
@@ -635,6 +558,10 @@ class ParticleFilter:
 
         robot_pose_estimate_stamped = PoseStamped()
         robot_pose_estimate_stamped.pose = self.robot_estimate
+        # pose = Pose()
+        # x,y = self.to_rviz_coords(274, 247)
+        # init_pose(pose, x, y, 0)
+        # robot_pose_estimate_stamped.pose = pose
         robot_pose_estimate_stamped.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
         self.robot_estimate_pub.publish(robot_pose_estimate_stamped)
         
@@ -829,9 +756,9 @@ class ParticleFilter:
                     rospy.sleep(4)
                     rospy.signal_shutdown("got bored")            
 
-                # start = time.time()
-                # self.motion.move(self.robot_estimate)
-                # print("move:", time.time()-start)         
+                start = time.time()
+                self.motion.move(self.robot_estimate)
+                print("move:", time.time()-start)         
 
                 self.odom_pose_last_motion_update = self.odom_pose
                 self.first_init = False
@@ -848,22 +775,34 @@ class ParticleFilter:
         
         # Update current robot pose to computed averages
         pose = self.robot_estimate
+        print("curr indices:", self.to_closestMap_indices(pose.position.x, pose.position.y))
         # pose.position = Point()
         with self.robot_estimate_cv:
-            pose.position.x = av_x
-            pose.position.y = av_y
-            pose.position.z = 0
-            # Need to convert yaw to quaternion
-            quat = quaternion_from_euler(0,0,av_yaw)
-            pose.orientation.x = quat[0]
-            pose.orientation.y = quat[1]
-            pose.orientation.z = quat[2]
-            pose.orientation.w = quat[3]
+            init_pose(pose, av_x, av_y, av_yaw)
             
             self.robot_estimate_set = True
             self.robot_estimate_updated = True
             self.robot_estimate_cv.notify_all()
         return
+    
+    def to_closestMap_indices(self, x, y):
+        map_res = self.map.info.resolution
+        pos_x = self.map.info.origin.position.x
+        pos_y = self.map.info.origin.position.y
+        
+        ind_x = int(((x - pos_x)/map_res))
+        ind_y = int(((y - pos_y)/map_res))
+        return ind_x, ind_y
+
+    def to_rviz_coords(self, ind_x, ind_y):
+        map_res = self.map.info.resolution
+        pos_x = self.map.info.origin.position.x
+        pos_y = self.map.info.origin.position.y
+        
+        x = (ind_x * map_res) + pos_x
+        y = (ind_y * map_res) + pos_y
+        return x, y
+        
 
 
     def update_particle_weights_with_measurement_model(self, data):
@@ -917,8 +856,12 @@ class ParticleFilter:
             # get ranges only for included angle_indices
             ranges = np.array(data.ranges)[angle_indices]
         
-        # preprocess; set all infinite values to max distance
-        ranges[ranges == float("inf")] = 12
+        if is_rplidar:
+            # preprocess; set all infinite values (beyond lidar range) to max distance
+            ranges[ranges == float("inf")] = 12
+        else:   
+            # preprocess; set all zero values (beyond lidar range) to max distance
+            ranges[ranges == 0] = 5
         
         # extract map info
         width = self.closestMap.shape[1]
