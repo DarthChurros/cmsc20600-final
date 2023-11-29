@@ -65,7 +65,8 @@ class LikelihoodField(object):
                 curr += 1
         self.occupied = occupied
         print("Hello")
-        np.save("computeMap",self.closest_occ)
+        # np.save("computeMap",self.closest_occ)
+        np.save("new1Map",self.closest_occ)
 
     def get_obstacle_bounding_box(self):
         """
