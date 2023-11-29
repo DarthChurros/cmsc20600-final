@@ -213,9 +213,9 @@ class Motion:
         
         return
 
-        pos_x = self.map.info.origin.position.x
-        pos_y = self.map.info.origin.position.y
-        map_res = self.map.info.resolution
+        pos_x = pf.map.info.origin.position.x
+        pos_y = pf.map.info.origin.position.y
+        map_res = pf.map.info.resolution
         tempx = int((curr_pose.position.x - pos_x)/map_res)
         tempy = int((curr_pose.position.y - pos_y)/map_res)
 
