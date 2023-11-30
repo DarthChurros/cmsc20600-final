@@ -69,10 +69,15 @@ class Motion:
         
     
     
-    def __init__(self, approach, init_info):    
-        self.pub_cmd_vel = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
-        rospy.on_shutdown(lambda : halt(self.pub_cmd_vel))
-        
+    def __init__(self, approach, pathFinder, pub_cmd_vel, map_res, map_origin_x, map_origin_y):  
+        self.pathFinder =  pathFinder
+        self.pub_cmd_vel = pub_cmd_vel
+        self.map_res = map_res
+        self.pos_x = map_origin_x
+        self.pos_y = map_origin_y
+
+
+
         if enable_naive_debug:
             self.robot_estimate_pub = rospy.Publisher("estimated_robot_pose", PoseStamped, queue_size=10)
         
@@ -83,6 +88,12 @@ class Motion:
             
         if approach == "parametric":
             self.move = self.move_parametric
+            from scipy.interpolate import splprep, splev
+        
+            pathxs = self.pathFinder.path[:, 0] * map_res + self.pos_x
+            pathys = self.pathFinder.path[:, 1] * map_res + self.pos_y
+            tck, u = splprep([pathxs, pathys], k=1,s=0)
+            init_info=(tck,)
             tck = init_info[0]
             self.tck = tck
             
@@ -174,67 +185,47 @@ class Motion:
         self.pub_cmd_vel.publish(Twist(linear=Vector3(0.2 * lin_error,0,0),angular=Vector3(0,0,ang_error)))
         
 
-    def move_naive(self, pf):
+    def move_naive(self,curr_pose):
        # This is where the main logic of the particle filter is carried out
 
         
-        pos_x = pf.map.info.origin.position.x
-        pos_y = pf.map.info.origin.position.y
-        map_res = pf.map.info.resolution
-        curr_pose = pf.robot_estimate
-        tempx = int((curr_pose.position.x - pos_x)/map_res)
-        tempy = int((curr_pose.position.y - pos_y)/map_res)
-
-
-        pf.pathFinder.update_pose((tempx,tempy))
-
-        print("distance:",pf.pathFinder.shortest_dists[tempx][tempy])
-                
-        move_vector, next_node = pf.pathFinder.naive_path_finder(0.05/map_res)
-                
-
-        # next_node = ((next_node[0] * map_res), (next_node[1] * map_res))
-        next_yaw = np.arctan2(move_vector[1],move_vector[0])
-        
-        if enable_naive_debug:
-            next_pose = Pose()
-            print(move_vector)
-            nextx, nexty = to_rviz_coords(pf, next_node[0], next_node[1])
-            init_pose(next_pose, nextx, nexty, next_yaw)
-            self.publish_pose(next_pose)
-
-        error = 0.25
-        ang_vel = next_yaw - get_yaw_from_pose(pf.robot_estimate)
-        lin_vel =  2*map_res * pow((1 + np.cos(ang_vel))/2,20)
-        if(move_vector[0] == move_vector[1]):
-            ang_vel = 0
-            lin_vel = -0.1
-        self.pub_cmd_vel.publish(Twist(linear=Vector3(error * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))    
-        
-        return
-
-        pos_x = pf.map.info.origin.position.x
-        pos_y = pf.map.info.origin.position.y
-        map_res = pf.map.info.resolution
-        tempx = int((curr_pose.position.x - pos_x)/map_res)
-        tempy = int((curr_pose.position.y - pos_y)/map_res)
+        tempx = int((curr_pose.position.x - self.pos_x)/self.map_res)
+        tempy = int((curr_pose.position.y - self.pos_y)/self.map_res)
 
 
         self.pathFinder.update_pose((tempx,tempy))
 
-        print("distance:",self.pathFinder.path[tempx][tempy])
+        print("distance:",self.pathFinder.shortest_dists[tempx][tempy])
                 
-        move_vector = self.pathFinder.naive_path_finder(0.05/map_res)
+        move_vector, next_node = self.pathFinder.naive_path_finder(0.05/self.map_res)
                 
 
-        move_vector = ((move_vector[0] * map_res), (move_vector[1] * map_res))
+        # next_node = ((next_node[0] * map_res), (next_node[1] * map_res))
+        next_yaw = np.arctan2(move_vector[1],move_vector[0])
+        mv_x = np.cos(next_yaw)
+        mv_y = np.sin(next_yaw)
         
+        #if enable_naive_debug:
+            #next_pose = Pose()
+            #print(move_vector)
+            #nextx, nexty = to_rviz_coords(pf, next_node[0], next_node[1])
+            #init_pose(next_pose, nextx, nexty, next_yaw)
+            #self.publish_pose(next_pose)
 
         error = 0.25
-        ang_vel = np.arctan2(move_vector[1],move_vector[0]) - get_yaw_from_pose(self.robot_estimate)
-        lin_vel =  2*map_res * pow((1 + np.cos(ang_vel))/2,20)
-        if(move_vector[0] == move_vector[1]):
+        print(next_yaw,get_yaw_from_pose(curr_pose))
+        ang_vel = np.sign(np.sin(next_yaw - get_yaw_from_pose(curr_pose))) * (mv_x * move_vector[0] + mv_y * move_vector[1])
+
+        lin_vel =  80 * self.map_res * pow((1 + np.cos(ang_vel))/2,20)
+
+        if(lin_vel < 0.00001):
+            lin_vel = 0
+        if(abs(ang_vel) < 0.00001):
             ang_vel = 0
-            lin_vel = -0.1
-        self.pub_cmd_vel.publish(Twist(linear=Vector3(error * 8 * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))
+
+        print(lin_vel,ang_vel)
+        
+        self.pub_cmd_vel.publish(Twist(linear=Vector3(error * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))    
+        
+        return
     

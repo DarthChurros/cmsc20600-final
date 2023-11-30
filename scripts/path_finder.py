@@ -91,6 +91,7 @@ class PathFinding:
         next_node = self.get_next_node()
         nodes = []
         distances = []
+        
         while(all(distances)):
             nodes.append(next_node)
             distances.append(True)
@@ -120,13 +121,11 @@ class PathFinding:
             tempUnchecked = []
             for i in unchecked:
                 for j in self.get_adjacent(i):
-                    if self.shortest_dists[j[0]][j[1]] == -1 and not (j in checked or j in tempUnchecked or j in unchecked):
-                        print(self.shortest_dists[j[0]][j[1]])
+                    if self.shortest_dists[j[0]][j[1]] == -1 and not (j in checked or j in tempUnchecked or j in unchecked):                       
                         tempUnchecked.append(j)
                     elif self.shortest_dists[j[0]][j[1]] != -1:
                         return j
                 checked.append(i)
-                print(i)
             unchecked = tempUnchecked
         return (0,0)
         
@@ -216,7 +215,7 @@ class PathFinding:
         self.shortest_dists = np.zeros(shape=self.map.shape) - 1
         for i in range(len(path)):
             p = path[i]
-            self.shortest_dists[p[0]][p[1]] = 1
+            self.shortest_dists[p[0]][p[1]] = i
 
     def compute_dijkstra(self):
         self.algorithm = "dijkstra"

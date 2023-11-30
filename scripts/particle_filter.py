@@ -36,7 +36,7 @@ from path_finder import PathFinding
 
 # demo toggles
 enable_motion_demo = False
-enable_closestMap_viz_demo = True
+enable_closestMap_viz_demo = False
 
 def get_yaw_from_pose(p):
     """ A helper function that takes in a Pose object (geometry_msgs) and returns yaw"""
@@ -223,11 +223,11 @@ class ParticleFilter:
         print("HERE")
         #self.pathFinder.reduce_path(1)
         print("THEREs")
-        self.pathFinder.compute_astar()
+        
         # our addition:
 
         if (enable_closestMap_viz_demo):
-            demo_visualize_closestMap(self.pathFinder.map + self.pathFinder.shortest_dists)
+            demo_visualize_closestMap(self.pathFinder.shortest_dists)
         
 
         # the number of particles used in the particle filter
@@ -295,6 +295,8 @@ class ParticleFilter:
 
         self.sound_pub = rospy.Publisher("/sound", Sound, queue_size=10)
 
+        self.pub_cmd_vel = rospy.Publisher("/cmd_vel",Twist,queue_size=10)
+
         # publish the estimated robot pose
         self.robot_estimate_pub = rospy.Publisher("estimated_robot_pose", PoseStamped, queue_size=10)
 
@@ -320,20 +322,12 @@ class ParticleFilter:
         while not self.map_set:
             time.sleep(0.1)
         
-        from scipy.interpolate import splprep, splev
-        map_res = self.map.info.resolution
-        pos_x = self.map.info.origin.position.x
-        pos_y = self.map.info.origin.position.y
-        
-        
-        pathxs = self.pathFinder.path[:, 0] * map_res + pos_x
-        pathys = self.pathFinder.path[:, 1] * map_res + pos_y
-        tck, u = splprep([pathxs, pathys], k=1,s=0)
+
 
         # the motion handler
-        self.motion = Motion(approach="parametric", init_info=(tck,))
+        self.motion = Motion("naive", self.pathFinder,self.pub_cmd_vel,self.map.info.resolution,self.map.info.origin.position.x,self.map.info.origin.position.y)
         # self.motion = Motion(approach="naive", init_info=None)
-        
+        print("THEREEE")
         # initialize shutdown callback
         rospy.on_shutdown(lambda : self.halt())
 
@@ -684,7 +678,6 @@ class ParticleFilter:
         if not self.odom_pose_last_motion_update:
             self.odom_pose_last_motion_update = self.odom_pose
             return
-
 
         if len(self.particle_cloud) > 0:
 
