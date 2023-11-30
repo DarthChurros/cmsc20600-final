@@ -164,14 +164,14 @@ class ParticleFilter:
         self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
         
         
-        self.pathFinder = PathFinding(self.closestMap, start=(2479, 1503), destination=(1998, 1992) ,algorithm="dijkstra") 
+        self.pathFinder = PathFinding(self.closestMap, start=(2479, 1503), destination=(1998, 1992) ,algorithm="dijkstra",outOfBounds=0.19) 
         self.pathFinder.compute_path_finding()
         print("POS")
         print(self.pathFinder.map[2479][1503])
         
         self.pathFinder.compute_path()
         print("HERE")
-        #self.pathFinder.reduce_path(1)
+        self.pathFinder.reduce_path(1)
         print("THEREs")
         
         # our addition:
@@ -275,7 +275,7 @@ class ParticleFilter:
 
 
         # the motion handler
-        self.motion = Motion("naive", self.pathFinder,self.pub_cmd_vel,self.map.info.resolution,self.map.info.origin.position.x,self.map.info.origin.position.y)
+        self.motion = Motion("parametric", self.pathFinder,self.pub_cmd_vel,self.map.info.resolution,self.map.info.origin.position.x,self.map.info.origin.position.y)
         # self.motion = Motion(approach="naive", init_info=None)
         print("THEREEE")
         # initialize shutdown callback

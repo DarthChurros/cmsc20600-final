@@ -92,7 +92,7 @@ class Motion:
         
             pathxs = self.pathFinder.path[:, 0] * map_res + self.pos_x
             pathys = self.pathFinder.path[:, 1] * map_res + self.pos_y
-            tck, u = splprep([pathxs, pathys], k=1,s=0)
+            tck, u = splprep([pathxs, pathys], k=3,s=200)
             init_info=(tck,)
             tck = init_info[0]
             self.tck = tck
@@ -155,11 +155,16 @@ class Motion:
         pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y))
         print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
 
+        tempx = int((curr_pose.position.x - self.pos_x)/self.map_res)
+        tempy = int((curr_pose.position.y - self.pos_y)/self.map_res)
+
+
+        self.pathFinder.update_pose((tempx,tempy))
             
         # print("time: ", time.time() - start)
         lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 16
         
-        self.pub_cmd_vel.publish(Twist(linear=Vector3(0.2 * lin_error,0,0),angular=Vector3(0,0,ang_error)))
+        self.pub_cmd_vel.publish(Twist(linear=Vector3(0.4 * lin_error,0,0),angular=Vector3(0,0,ang_error)))
         
 
     def move_naive(self,curr_pose):
@@ -191,9 +196,10 @@ class Motion:
 
         error = 0.25
         print(next_yaw,get_yaw_from_pose(curr_pose))
-        ang_vel = np.sign(np.sin(next_yaw - get_yaw_from_pose(curr_pose))) * (mv_x * move_vector[0] + mv_y * move_vector[1])
+        ang_vel = 10 * wrapto_pi(next_yaw- get_yaw_from_pose(curr_pose))
+        #np.sign(np.sin(next_yaw - get_yaw_from_pose(curr_pose))) * np.arccos(mv_y * move_vector[0] + mv_x * move_vector[1])/np.pi
 
-        lin_vel =  80 * self.map_res * pow((1 + np.cos(ang_vel))/2,20)
+        lin_vel =  800 * self.map_res * pow((1 + np.cos(ang_vel))/2,20)
 
         if(lin_vel < 0.00001):
             lin_vel = 0
