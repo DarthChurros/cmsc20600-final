@@ -100,29 +100,6 @@ class Motion:
             self.curr_t = 0
             return
             
-            t_var, x_func, y_func = init_info
-            print("t_var", t_var)
-            print("x_func", x_func)
-            print("_func", y_func)
-            self.t_var = t_var
-            self.x_func = x_func
-            self.y_func = y_func
-            
-            self.x_lam = s.lambdify(t_var, x_func, "numpy")
-            self.y_lam = s.lambdify(t_var, y_func, "numpy")
-            self.xp_func = s.diff(x_func, t_var)
-            self.yp_func = s.diff(y_func, t_var)
-            self.xp_lam = s.lambdify(t_var, self.xp_func, "numpy")
-            self.yp_lam = s.lambdify(t_var, self.yp_func, "numpy")
-            self.a_var = s.Symbol("a")
-            self.b_var = s.Symbol("b")
-            self.d_func = (x_func - self.a_var) ** 2 + (y_func - self.b_var) ** 2
-            # d = (x - 1) ** 2 + (f - 2) ** 2
-            self.dp_func = s.diff(self.d_func, t_var)
-            self.dpp_func = s.diff(self.dp_func, t_var)
-            
-            self.curr_t = 0
-            return
     
     def halt(self):
         '''Halts the robot. i.e. publishes a 0 Twist to cmd_vel'''
