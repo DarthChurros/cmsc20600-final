@@ -96,34 +96,7 @@ def rvizify_indices(x, y, arr_shape):
     return -y + arr_shape[1], x
 
     
-        
-    
-import sympy as s
-t_var = s.Symbol("t")
-# x_func = s.cos(t_var)
-# y_func = s.sin(t_var) + 1
-x_func = 0.2 * t_var * s.cos(t_var)
-y_func = 0.2 * t_var * s.sin(t_var)
-x_func = s.Piecewise((0.20 * t_var + 0.8, t_var <= 1), (0.45 * t_var + 0.55, t_var <= 2), (-0.12 * t_var + 1.69, t_var <= 3), (1.33, True))
-y_func = s.Piecewise((1.15 * t_var + 0.3, t_var <= 1), (1.45, t_var <= 2), (-1.3 * t_var + 4.05, t_var <= 3), (0.15, True))
 
-# start: 0.8, 0.3, 0
-# 0.25, 1.15, 1
-# 0.45, 0, 1
-# -0.12, -1.3, 1
-x_lam = s.lambdify(t_var, x_func, "numpy")
-y_lam = s.lambdify(t_var, y_func, "numpy")
-xp_func = s.diff(x_func, t_var)
-yp_func = s.diff(y_func, t_var)
-xp_lam = s.lambdify(t_var, xp_func, "numpy")
-yp_lam = s.lambdify(t_var, yp_func, "numpy")
-a_var = s.Symbol("a")
-b_var = s.Symbol("b")
-d_func = (x_func - a_var) ** 2 + (y_func - b_var) ** 2
-# d = (x - 1) ** 2 + (f - 2) ** 2
-dp_func = s.diff(d_func, t_var)
-dpp_func = s.diff(dp_func, t_var)
-    
 def visualize_curve(self):    
     ts = np.arange(0, 100, 0.1)
     particle_cloud_pose_array = PoseArray()
@@ -191,40 +164,14 @@ class ParticleFilter:
         self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
         
         
-        
-        
-        # assert(np.array_equal(self.aStarPathMap, astarmap))
-        
-        # import matplotlib.pyplot as plt
-        # fig, axs = plt.subplots(ncols=2, figsize=(8, 4))
-        
-        # closestMap = self.closestMap
-        # closestMap[closestMap >= 0.6] = 0.6
-        
-        # closestMap[[0, 10, 20, 30, 40, 50], :] = 0
-        # closestMap[247:258, 274:285] = 0
-        
-        # axs[0].imshow(closestMap, cmap='hot', interpolation='nearest', origin='lower')
-        # axs[1].imshow(astarmap, cmap='hot', interpolation='nearest', origin='lower')
-        # axs[1].plot(204, 214, "ro")
-        # axs[1].plot(247, 274, "go")
-        # plt.show()
-        
-        #demo_visualize_closestMap(self.closestMap)
-        # maze_map (start, end)
-        # self.pathFinder = PathFinding(self.aStarPathMap, start=(274,247), destination=(214,204) ,algorithm="dijkstra")
-        # new1 (start, end)
         self.pathFinder = PathFinding(self.closestMap, start=(2479, 1503), destination=(1998, 1992) ,algorithm="dijkstra") 
         self.pathFinder.compute_path_finding()
         print("POS")
         print(self.pathFinder.map[2479][1503])
         
         self.pathFinder.compute_path()
-        print("HERE")
-        #self.pathFinder.reduce_path(1)
-        print("THEREs")
+        self.pathFinder.reduce_path(1)
         self.pathFinder.compute_astar()
-        # our addition:
 
         if (enable_closestMap_viz_demo):
             demo_visualize_closestMap(self.pathFinder.map + self.pathFinder.shortest_dists)
@@ -564,10 +511,6 @@ class ParticleFilter:
 
         robot_pose_estimate_stamped = PoseStamped()
         robot_pose_estimate_stamped.pose = self.robot_estimate
-        # pose = Pose()
-        # x,y = self.to_rviz_coords(274, 247)
-        # init_pose(pose, x, y, 0)
-        # robot_pose_estimate_stamped.pose = pose
         robot_pose_estimate_stamped.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
         self.robot_estimate_pub.publish(robot_pose_estimate_stamped)
         
@@ -846,14 +789,6 @@ class ParticleFilter:
             lidar_angles = angle_indices * (2 * np.pi) / 360
         
         
-        # angle_incr = 1 if self.first_init else 90 # 3 increment ~ 0.9 degrees
-        # angle_indices = np.arange(0, 360, angle_incr)
-        # num_angles = len(angle_indices)
-        
-        # # convert from lidar angle indices to angles
-        # lidar_angles = angle_indices * (2 * np.pi) / 360
-        
-        
         
         if enable_measure_model_demo:
             # dummy ranges value for demo purposes
@@ -922,46 +857,6 @@ class ParticleFilter:
         # set particle weight with product of probabilities
         weights[:] = np.prod(preserve_factor * z_hit * prob_ds + zr_zm, axis=1)
         return
-    
-    
-    
-        
-        for i in range(num_particles):
-            # yaw of ith particle
-            curr_yaw = yaws[i]
-            
-            # x,y positions of ith particle
-            x_i = poses[0, i]
-            y_i = poses[1, i]
-            
-            # reorient "ranges" vectors to particle yaw...
-            trans_dxs = ranges * np.cos(lidar_angles + curr_yaw)
-            trans_dys = ranges * np.sin(lidar_angles + curr_yaw)
-            
-            # ...then translate to particle position
-            trans_dxs = trans_dxs + x_i
-            trans_dys = trans_dys + y_i
-            
-            # convert transformed ranges to closestMap indices
-            norm_xs = ((trans_dxs - pos_x)/map_res).astype(int)
-            norm_ys = ((trans_dys - pos_y)/map_res).astype(int)
-            
-            # closest obstacle distances; initialized to out-of-bound penalty
-            # (until proven to be "in_bound", assume all "ranges" are out-of-bound)
-            dists = np.zeros(num_angles) + oob_penalty
-            
-            # boolean mask indicating all in-bound range indices
-            in_bound = (norm_xs >= 0) & (norm_xs < width) & (norm_ys >= 0) & (norm_ys < height)
-            # inititalize only in-bound closest map distances
-            dists[in_bound] = self.closestMap[norm_xs[in_bound], norm_ys[in_bound]]
-            assert(len(dists) == num_angles)
-            
-            
-            # compute likelihood probabilities of each distance
-            prob_ds = np.exp(-pow(dists,2)/(2 * pow(sigma_hit,2))) / (sigma_hit * np.sqrt(2 * np.pi))
-            
-            # set particle weight with product of probabilities
-            weights[i] = np.prod(preserve_factor * z_hit * prob_ds + zr_zm)
 
 
         
@@ -1022,14 +917,9 @@ class ParticleFilter:
         
         # update particle yaws by corresponding deltas (modulo to wrap around)
         self.yaws = (self.yaws + dyaws) % (2 * np.pi)
-        
         # print(f"dx: {dx_raw}, dy: {dy_raw}, dyaw: {dyaw_raw}")
         
         
-        # based on the how the robot has moved (calculated from its odometry), we'll  move
-        # all of the particles correspondingly
-
-        # TODO
 
 
     def halt(self):
@@ -1043,16 +933,6 @@ class ParticleFilter:
 def wrapto_pi(angle):
     return (angle + np.pi) % (2 * np.pi) - np.pi
     # https://stackoverflow.com/questions/15927755/opposite-of-numpy-unwrap
-    
-    angle %= (2 * np.pi)
-    assert (-2 * np.pi <= angle <= 2 * np.pi)
-    
-    if angle <= -np.pi:
-        return 2 * np.pi + angle
-    elif angle > np.pi:
-        return angle - 2 * np.pi
-    else:
-        return angle
 
 if __name__=="__main__":
     
@@ -1063,110 +943,3 @@ if __name__=="__main__":
     
     
     rospy.spin()
-    exit(0)
-    # !! PROCEED NO FURTHER !!
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    # global robot_estimate_set
-    # global self.robot_estimate_updated
-    # global self.robot_estimate_cv
-    
-    curr_t = 0
-    pub_cmd_vel = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
-    rospy.on_shutdown(lambda : halt(pub_cmd_vel))
-    
-    while not robot_estimate_set:
-        print("not set")
-        rospy.sleep(1)
-    print("set!")
-        
-    # while not rospy.is_shutdown():
-    #     time.sleep(0.5)
-    #     pass
-
-    while not rospy.is_shutdown():
-        with self.robot_estimate_cv:
-            while not self.robot_estimate_updated:
-                self.robot_estimate_cv.wait()
-            print("updated!")
-            curr_x = robot_estimate.position.x
-            curr_y = robot_estimate.position.y
-            curr_yaw = get_yaw_from_pose(robot_estimate)
-            self.robot_estimate_updated = False
-        if rospy.is_shutdown():
-            break
-            
-        start = time.time()
-        is_approx = True
-        
-        start=time.time()
-        d_curr = d_func.subs(a_var, curr_x).subs(b_var, curr_y)
-        dp_curr = dp_func.subs(a_var, curr_x).subs(b_var, curr_y)
-
-
-        if not is_approx:
-            # roots = s.Poly(dp, x).nroots()
-            roots = s.real_roots(dp_curr, t_var)
-            t = min(roots, key = lambda r : d_curr.subs(t_var, r).evalf())
-            clos_x_sym = x_lam(t)
-            clos_y_sym = y_lam(t)
-            
-            clos_x = clos_x_sym.evalf()
-            clos_y = clos_y_sym.evalf()
-            
-            curve_x = xp_func.subs(t_var, clos_x_sym).evalf()
-            curve_y = yp_func.subs(t_var, clos_x_sym).evalf()
-            
-        else:
-            from scipy.optimize import minimize_scalar
-            d_curr_lam = s.lambdify(t_var, d_curr, "numpy")
-            
-            # 0.01 gives a sense of urgency; always pick at least slightly further along the curve
-            result = minimize_scalar(d_curr_lam, bounds=(curr_t + 0.01, curr_t + 1), method='bounded')
-            t = result.x
-        
-            clos_x = x_lam(t)
-            clos_y = y_lam(t)
-        
-            curve_x = xp_lam(t)
-            curve_y = yp_lam(t)
-            
-            curr_t = t
-        
-        corr_weight = np.e ** (100 * np.hypot(clos_x - curr_x, clos_y - curr_y)) - 1
-        corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * 16
-        curve_vel = np.array([curve_x, curve_y]) * 8
-        total_vel = (corr_vel + curve_vel).astype(float)
-        # np.dot()
-        target_yaw = np.arctan2(total_vel[1], total_vel[0])
-        ang_error = wrapto_pi(target_yaw - curr_yaw)
-        pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y))
-        print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
-
-        
-        # print("time: ", time.time() - start)
-        
-        # lin_error = absolute_cutoff(dist + 0.4, limit=1) * (abs(ang_error) / np.pi - 1) ** 12
-        lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 16
-        pub_cmd_vel.publish(Twist(linear=Vector3(0.5*lin_error,0,0),angular=Vector3(0,0,0.5*ang_error)))
-        print("MOVE: ", time.time()-start)
-    rospy.spin()
-
-
-
-
-
-
-
-
-

@@ -89,29 +89,6 @@ class Motion:
             self.curr_t = 0
             return
             
-            t_var, x_func, y_func = init_info
-            print("t_var", t_var)
-            print("x_func", x_func)
-            print("_func", y_func)
-            self.t_var = t_var
-            self.x_func = x_func
-            self.y_func = y_func
-            
-            self.x_lam = s.lambdify(t_var, x_func, "numpy")
-            self.y_lam = s.lambdify(t_var, y_func, "numpy")
-            self.xp_func = s.diff(x_func, t_var)
-            self.yp_func = s.diff(y_func, t_var)
-            self.xp_lam = s.lambdify(t_var, self.xp_func, "numpy")
-            self.yp_lam = s.lambdify(t_var, self.yp_func, "numpy")
-            self.a_var = s.Symbol("a")
-            self.b_var = s.Symbol("b")
-            self.d_func = (x_func - self.a_var) ** 2 + (y_func - self.b_var) ** 2
-            # d = (x - 1) ** 2 + (f - 2) ** 2
-            self.dp_func = s.diff(self.d_func, t_var)
-            self.dpp_func = s.diff(self.dp_func, t_var)
-            
-            self.curr_t = 0
-            return
     
     def halt(self):
         '''Halts the robot. i.e. publishes a 0 Twist to cmd_vel'''
@@ -213,28 +190,4 @@ class Motion:
         
         return
 
-        pos_x = pf.map.info.origin.position.x
-        pos_y = pf.map.info.origin.position.y
-        map_res = pf.map.info.resolution
-        tempx = int((curr_pose.position.x - pos_x)/map_res)
-        tempy = int((curr_pose.position.y - pos_y)/map_res)
-
-
-        self.pathFinder.update_pose((tempx,tempy))
-
-        print("distance:",self.pathFinder.path[tempx][tempy])
-                
-        move_vector = self.pathFinder.naive_path_finder(0.05/map_res)
-                
-
-        move_vector = ((move_vector[0] * map_res), (move_vector[1] * map_res))
-        
-
-        error = 0.25
-        ang_vel = np.arctan2(move_vector[1],move_vector[0]) - get_yaw_from_pose(self.robot_estimate)
-        lin_vel =  2*map_res * pow((1 + np.cos(ang_vel))/2,20)
-        if(move_vector[0] == move_vector[1]):
-            ang_vel = 0
-            lin_vel = -0.1
-        self.pub_cmd_vel.publish(Twist(linear=Vector3(error * 8 * lin_vel,0,0),angular=Vector3(0,0,error * ang_vel)))
     
