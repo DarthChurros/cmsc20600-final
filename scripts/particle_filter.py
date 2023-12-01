@@ -176,9 +176,7 @@ class ParticleFilter:
         print("POS")
         print(self.pathFinder.map[2479][1503])
         
-        self.pathFinder.compute_path()
         print("HERE")
-        self.pathFinder.reduce_path(1)
         print("THEREs")
         
         # our addition:
@@ -252,8 +250,6 @@ class ParticleFilter:
 
         self.sound_pub = rospy.Publisher("/sound", Sound, queue_size=10)
 
-        self.pub_cmd_vel = rospy.Publisher("/cmd_vel",Twist,queue_size=10)
-
         # publish the estimated robot pose
         self.robot_estimate_pub = rospy.Publisher("estimated_robot_pose", PoseStamped, queue_size=10)
 
@@ -299,10 +295,10 @@ class ParticleFilter:
         # # plt.imshow(rvizify_array(self.pathFinder.map), cmap='hot', interpolation='nearest', origin="lower")
         
         # arr_shape = rvizified_closestMap.shape
-        pathxs, pathys = self.to_rviz_coords(self.pathFinder.path[:, 0], self.pathFinder.path[:, 1])
+        # pathxs, pathys = self.to_rviz_coords(self.pathFinder.path[:, 0], self.pathFinder.path[:, 1])
         # tck, u = splprep([pathxs, pathys], k=1, s=0)
         # tck3, u = splprep([pathxs, pathys], k=3, s=0.005)
-        tck3, u = splprep([pathxs, pathys], k=3, s=0.01)
+        # tck3, u = splprep([pathxs, pathys], k=3, s=0.01)
         
         
         
@@ -328,28 +324,6 @@ class ParticleFilter:
         # plt.show()    
         # # exit(0)
         
-        
-        
-        self.curve_poses = np.array([Pose() for i in range(int(1/0.0001))])
-        
-        def init_curve():    
-            ts = np.arange(0, 1, 0.0001)
-            x3s, y3s = splev(ts, tck3)
-            
-            print(x3s)
-            xp3s, yp3s = splev(ts, tck3, der=1)
-            particle_cloud_pose_array = PoseArray()
-            particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
-            
-            for i in range(0, len(ts), 100):
-                curr_pose = self.curve_poses[i]
-
-                init_pose(curr_pose, x3s[i], y3s[i], np.arctan2(yp3s[i], xp3s[i]))
-            print("ENDING")
-            
-        init_curve()
-        self.publish_curve()
-        
         '''
         !!!! DO NOT DELETE !!!!
         <<<<'''
@@ -357,7 +331,7 @@ class ParticleFilter:
 
 
         # the motion handler
-        self.motion = Motion("parametric", self.pathFinder,self.pub_cmd_vel,self.map.info.resolution,self.map.info.origin.position.x,self.map.info.origin.position.y)
+        self.motion = Motion("parametric", self.pathFinder, self.map)
         # self.motion = Motion(approach="naive", init_info=None)
         print("THEREEE")
         # initialize shutdown callback
@@ -762,7 +736,6 @@ class ParticleFilter:
 
                     prevT = currT
                     self.publish_particle_cloud()
-                    # self.publish_curve()
                     currT = time.time()
                     print("pub cloud", currT - prevT)
 

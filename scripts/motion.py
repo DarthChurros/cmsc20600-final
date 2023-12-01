@@ -5,7 +5,7 @@ import time
 import numpy as np
 import sympy as s
 
-from geometry_msgs.msg import Pose, PoseStamped
+from geometry_msgs.msg import Pose, PoseStamped, PoseArray
 from std_msgs.msg import Header
 
 import scipy
@@ -72,14 +72,21 @@ class Motion:
         pose_stamped.header = Header(stamp=rospy.Time.now(), frame_id="map")
         self.robot_estimate_pub.publish(pose_stamped)
         
+    def publish_curve(self):
     
+        particle_cloud_pose_array = PoseArray()
+        particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id="map")
+        particle_cloud_pose_array.poses = self.curve_poses
     
-    def __init__(self, approach, pathFinder, pub_cmd_vel, map_res, map_origin_x, map_origin_y):  
+        self.particles_pub.publish(particle_cloud_pose_array)
+        
+
+    def __init__(self, approach, pathFinder, closestMap):  
         self.pathFinder =  pathFinder
-        self.pub_cmd_vel = pub_cmd_vel
-        self.map_res = map_res
-        self.pos_x = map_origin_x
-        self.pos_y = map_origin_y
+        self.map_res = closestMap.info.resolution
+        self.pos_x = closestMap.info.origin.position.x
+        self.pos_y = closestMap.info.origin.position.y
+        self.pub_cmd_vel = rospy.Publisher("/cmd_vel",Twist,queue_size=10)
 
 
 
@@ -93,17 +100,11 @@ class Motion:
             
         if approach == "parametric":
             self.move = self.move_parametric
-            from scipy.interpolate import splprep, splev
-        
-            pathxs = self.pathFinder.path[:, 0] * map_res + self.pos_x
-            pathys = self.pathFinder.path[:, 1] * map_res + self.pos_y
-            tck, u = splprep([pathxs, pathys], k=3,s=0.01)
-            # tck, u = splprep([pathxs, pathys], k=1,s=0)
-            init_info=(tck,)
-            tck = init_info[0]
-            self.tck = tck
-            
+            self.path_set = False
+            self.tck = None
             self.curr_t = 0
+            self.curve_poses = np.array([Pose() for i in range(int(1/0.0001))])
+            self.particles_pub = rospy.Publisher("particle_cloud", PoseArray, queue_size=10)
             return
             
     
@@ -118,6 +119,42 @@ class Motion:
         curr_y = curr_pose.position.y
         curr_yaw = get_yaw_from_pose(curr_pose)
         curr_pose_updated = False
+        
+        from scipy.interpolate import splprep, splev
+        if (not self.path_set):
+            print("pre sel", self.pathFinder.current_pose)
+            indc_x, indc_y = to_closestMap_indices(self, curr_x, curr_y)
+            self.pathFinder.update_pose((indc_x, indc_y))
+            print("pos sel", self.pathFinder.current_pose)
+            
+            self.pathFinder.compute_path()
+            self.pathFinder.reduce_path(1)
+            
+            pathxs = self.pathFinder.path[:, 0] * self.map_res + self.pos_x
+            pathys = self.pathFinder.path[:, 1] * self.map_res + self.pos_y
+            tck, u = splprep([pathxs, pathys], k=5,s=0.01)
+            self.tck = tck
+            
+            def init_curve():    
+                ts = np.arange(0, 1, 0.0001)
+                x3s, y3s = splev(ts, tck)
+                
+                print(x3s)
+                xp3s, yp3s = splev(ts, tck, der=1)
+                particle_cloud_pose_array = PoseArray()
+                particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id="map")
+                
+                for i in range(0, len(ts), 100):
+                    curr_pose = self.curve_poses[i]
+
+                    init_pose(curr_pose, x3s[i], y3s[i], np.arctan2(yp3s[i], xp3s[i]))
+            
+            init_curve()
+            self.path_set = True
+        self.publish_curve()
+        
+        
+        
         
         # start=time.time()
         
