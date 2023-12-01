@@ -128,11 +128,12 @@ class Motion:
             print("pos sel", self.pathFinder.current_pose)
             
             self.pathFinder.compute_path()
-            self.pathFinder.reduce_path(1)
+            self.pathFinder.reduce_path(1) # actually works better without this
             
             pathxs = self.pathFinder.path[:, 0] * self.map_res + self.pos_x
             pathys = self.pathFinder.path[:, 1] * self.map_res + self.pos_y
-            tck, u = splprep([pathxs, pathys], k=5,s=0.01)
+            
+            tck, u = splprep([pathxs, pathys], k=3,s=0.007)
             self.tck = tck
             
             def init_curve():    
@@ -166,7 +167,7 @@ class Motion:
                 dist = np.sqrt((x - curve_point[0])**2 + (y - curve_point[1])**2)
                 return dist
 
-            result = scipy.optimize.minimize_scalar(objective, bounds=(self.curr_t, self.curr_t + 0.01), method="bounded")
+            result = scipy.optimize.minimize_scalar(objective, bounds=(self.curr_t+0.001, self.curr_t + 0.01), method="bounded")
             return result.x
 
             
@@ -183,7 +184,8 @@ class Motion:
         curve_y = derivative_of_closest_point[1]
         
         
-        corr_weight = 40
+        k = self.pathFinder.dist / 924
+        corr_weight = 30
         corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * corr_weight
         curve_vel = np.array([curve_x, curve_y])
         total_vel = (corr_vel + curve_vel).astype(float)
@@ -205,11 +207,11 @@ class Motion:
         self.pathFinder.update_pose((tempx,tempy))
             
         # print("time: ", time.time() - start)
-        lin_error = (abs(ang_error) / np.pi - 1) ** 12
+        lin_error = (abs(ang_error) / np.pi - 1) ** 10
         
         # this combo is also good:
         # self.pub_cmd_vel.publish(Twist(linear=Vector3(0.8*lin_error,0,0),angular=Vector3(0,0,2*ang_error)))
-        self.pub_cmd_vel.publish(Twist(linear=Vector3(lin_error,0,0),angular=Vector3(0,0,2*ang_error)))
+        self.pub_cmd_vel.publish(Twist(linear=Vector3(0.4*k*lin_error,0,0),angular=Vector3(0,0,2*ang_error)))
         
 
     def move_naive(self,curr_pose):

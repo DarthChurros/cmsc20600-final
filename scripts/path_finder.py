@@ -34,7 +34,7 @@ class PathFinding:
         self.algorithm = algorithm
         self.closestMap = map
         boundMap = np.zeros(shape=self.closestMap.shape)
-        occupiable = (self.closestMap <= outOfBounds) | (self.closestMap > 0.6)
+        occupiable = (self.closestMap <= outOfBounds)
         boundMap[occupiable] = -1
         boundMap = boundMap + 1
         self.map = boundMap
@@ -42,6 +42,16 @@ class PathFinding:
         self.current_pose = start
         self.destination = destination
         self.bound = bound
+        
+        # print(self.shortest_dists)
+        # self.costs = np.ones_like(self.closestMap)
+        # self.costs = 0.5*(0.22/self.closestMap - 1)
+        # self.costs[self.costs < 0] = 0
+        # self.costs[self.costs > 1] = 1
+        # self.costs = 100*self.costs
+        # self.costs[:] = 0
+        # print(self.costs[self.costs != 0])
+        # exit(0)
         
         self.path = None
 
@@ -207,6 +217,7 @@ class PathFinding:
             current_pose = self.get_next_node(current_pose)
         
         self.path = np.array(temp_path)
+        self.dist = len(self.path)
 
     def compute_astar(self):
         self.compute_dijkstra()
@@ -223,6 +234,10 @@ class PathFinding:
         unchecked = self.get_adjacent(self.destination)
         self.shortest_dists = np.zeros(shape=self.map.shape) - 1
         self.shortest_dists[self.destination[0], self.destination[1]] = 0
+        # import matplotlib.pyplot as plt
+        # plt.imshow(self.costs, cmap='hot', interpolation='nearest', origin="lower")
+        # plt.show()
+        # exit(0)
         
         
         for i in unchecked:
@@ -234,11 +249,13 @@ class PathFinding:
                     if self.shortest_dists[j[0]][j[1]] == -1 and self.map[j[0]][j[1]] == 1:
                         tempUnchecked.append(j)
                         # distance update without diagonals
-                        self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + 1
+                        # self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + 1 + np.exp(self.costs[i[0]][i[1]])
                         # distance update with diagonals
-                        #self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + np.hypot(i[0]-j[0],i[1]-j[1])
+                        # self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + np.hypot(i[0]-j[0],i[1]-j[1]) + self.costs[i[0]][i[1]]
+                        self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + np.hypot(i[0]-j[0],i[1]-j[1])
                 checked.append(i)
             unchecked = tempUnchecked
+        # assert(False)
     
     def at_destination(self):
         return self.shortest_dists[self.current_pose[0]][self.current_pose[1]] < self.bound and self.shortest_dists[self.current_pose[0]][self.current_pose[1]] != -1
