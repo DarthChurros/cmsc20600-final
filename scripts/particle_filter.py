@@ -171,7 +171,7 @@ class ParticleFilter:
         self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
         
         
-        self.pathFinder = PathFinding(self.closestMap, start=(2479, 1503), destination=(1998, 1992) ,algorithm="dijkstra") 
+        self.pathFinder = PathFinding(self.closestMap, start=(2479, 1503), destination=(1998, 1992) ,algorithm="dijkstra",outOfBounds=0.19) 
         self.pathFinder.compute_path_finding()
         print("POS")
         print(self.pathFinder.map[2479][1503])

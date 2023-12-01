@@ -161,6 +161,11 @@ class Motion:
         pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y))
         print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
 
+        tempx = int((curr_pose.position.x - self.pos_x)/self.map_res)
+        tempy = int((curr_pose.position.y - self.pos_y)/self.map_res)
+
+
+        self.pathFinder.update_pose((tempx,tempy))
             
         # print("time: ", time.time() - start)
         lin_error = (abs(ang_error) / np.pi - 1) ** 12
@@ -199,9 +204,10 @@ class Motion:
 
         error = 0.25
         print(next_yaw,get_yaw_from_pose(curr_pose))
-        ang_vel = np.sign(np.sin(next_yaw - get_yaw_from_pose(curr_pose))) * (mv_x * move_vector[0] + mv_y * move_vector[1])
+        ang_vel = 10 * wrapto_pi(next_yaw- get_yaw_from_pose(curr_pose))
+        #np.sign(np.sin(next_yaw - get_yaw_from_pose(curr_pose))) * np.arccos(mv_y * move_vector[0] + mv_x * move_vector[1])/np.pi
 
-        lin_vel =  80 * self.map_res * pow((1 + np.cos(ang_vel))/2,20)
+        lin_vel =  800 * self.map_res * pow((1 + np.cos(ang_vel))/2,20)
 
         if(lin_vel < 0.00001):
             lin_vel = 0

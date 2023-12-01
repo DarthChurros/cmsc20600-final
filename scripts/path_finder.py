@@ -34,7 +34,7 @@ class PathFinding:
         self.algorithm = algorithm
         self.closestMap = map
         boundMap = np.zeros(shape=self.closestMap.shape)
-        occupiable = (self.closestMap <= 0.20) | (self.closestMap > 0.6)
+        occupiable = (self.closestMap <= outOfBounds) | (self.closestMap > 0.6)
         boundMap[occupiable] = -1
         boundMap = boundMap + 1
         self.map = boundMap
