@@ -12,13 +12,18 @@ import scipy
 from scipy.interpolate import splprep, splev
 
 def to_rviz_coords(self, ind_x, ind_y):
-    map_res = self.map.info.resolution
-    pos_x = self.map.info.origin.position.x
-    pos_y = self.map.info.origin.position.y
+    # map_res = self.map.info.resolution
+    # pos_x = self.map.info.origin.position.x
+    # pos_y = self.map.info.origin.position.y
     
-    x = (ind_x * map_res) + pos_x
-    y = (ind_y * map_res) + pos_y
+    x = (ind_x * self.map_res) + self.pos_x
+    y = (ind_y * self.map_res) + self.pos_y
     return x, y
+
+def to_closestMap_indices(self, x, y):
+    ind_x = int(((x - self.pos_x)/self.map_res))
+    ind_y = int(((y - self.pos_y)/self.map_res))
+    return ind_x, ind_y
 
 
 def halt(publisher):
@@ -92,7 +97,8 @@ class Motion:
         
             pathxs = self.pathFinder.path[:, 0] * map_res + self.pos_x
             pathys = self.pathFinder.path[:, 1] * map_res + self.pos_y
-            tck, u = splprep([pathxs, pathys], k=1,s=0)
+            tck, u = splprep([pathxs, pathys], k=3,s=0.01)
+            # tck, u = splprep([pathxs, pathys], k=1,s=0)
             init_info=(tck,)
             tck = init_info[0]
             self.tck = tck
@@ -140,7 +146,7 @@ class Motion:
         curve_y = derivative_of_closest_point[1]
         
         
-        corr_weight = np.e ** (100 * np.hypot(clos_x - curr_x, clos_y - curr_y)) - 1
+        corr_weight = 40
         corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * corr_weight
         curve_vel = np.array([curve_x, curve_y])
         total_vel = (corr_vel + curve_vel).astype(float)
@@ -148,7 +154,7 @@ class Motion:
         if enable_naive_debug:
             next_pose = Pose()
             init_pose(next_pose, clos_x, clos_y, np.arctan2(total_vel[1], total_vel[0]))
-            self.publish_pose(next_pose)
+            # self.publish_pose(next_pose)
 
         target_yaw = np.arctan2(total_vel[1], total_vel[0])
         ang_error = wrapto_pi(target_yaw - curr_yaw)
@@ -157,9 +163,11 @@ class Motion:
 
             
         # print("time: ", time.time() - start)
-        lin_error = 0.4 * (abs(ang_error) / np.pi - 1) ** 16
+        lin_error = (abs(ang_error) / np.pi - 1) ** 12
         
-        self.pub_cmd_vel.publish(Twist(linear=Vector3(0.2 * lin_error,0,0),angular=Vector3(0,0,ang_error)))
+        # this combo is also good:
+        # self.pub_cmd_vel.publish(Twist(linear=Vector3(0.8*lin_error,0,0),angular=Vector3(0,0,2*ang_error)))
+        self.pub_cmd_vel.publish(Twist(linear=Vector3(lin_error,0,0),angular=Vector3(0,0,2*ang_error)))
         
 
     def move_naive(self,curr_pose):

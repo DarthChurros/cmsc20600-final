@@ -135,6 +135,13 @@ class ParticleFilter:
         self.particles_pub.publish(particle_cloud_pose_array)
 
 
+    def publish_curve(self):
+    
+        particle_cloud_pose_array = PoseArray()
+        particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
+        particle_cloud_pose_array.poses = self.curve_poses
+
+        self.particles_pub.publish(particle_cloud_pose_array)
 
 
     def __init__(self):
@@ -171,7 +178,7 @@ class ParticleFilter:
         
         self.pathFinder.compute_path()
         print("HERE")
-        #self.pathFinder.reduce_path(1)
+        self.pathFinder.reduce_path(1)
         print("THEREs")
         
         # our addition:
@@ -271,11 +278,86 @@ class ParticleFilter:
 
         while not self.map_set:
             time.sleep(0.1)
+
+
+        '''
+        >>>>
+        !!!! DO NOT DELETE !!!!
+        curve visualization aid section. '''
+        # 
+        # import matplotlib.pyplot as plt
+        # closestMap = self.closestMap
+        
+        # cutoff = 0.01
+        # closestMap[closestMap >= cutoff] = 1
+        # rvizified_closestMap = rvizify_array(closestMap)
+        # plt.imshow(rvizified_closestMap, cmap='hot', interpolation='nearest', origin="lower")
+        
+        from scipy.interpolate import splprep, splev
+
+    
+        # # plt.imshow(rvizify_array(self.pathFinder.map), cmap='hot', interpolation='nearest', origin="lower")
+        
+        # arr_shape = rvizified_closestMap.shape
+        pathxs, pathys = self.to_rviz_coords(self.pathFinder.path[:, 0], self.pathFinder.path[:, 1])
+        # tck, u = splprep([pathxs, pathys], k=1, s=0)
+        # tck3, u = splprep([pathxs, pathys], k=3, s=0.005)
+        tck3, u = splprep([pathxs, pathys], k=3, s=0.01)
+        
+        
+        
+        # ts = np.arange(0, 1, 0.0001)
+        # xs, ys = splev(ts, tck)
+        # xs, ys = self.to_closestMap_indices(xs, ys)
+        # xs, ys = rvizify_indices(xs, ys, arr_shape)
+        # plt.plot(xs, ys, "b-")
+        
+        # ts = np.arange(0, 1, 0.0001)
+        # x3s, y3s = splev(ts, tck3)
+        # x3s, y3s = self.to_closestMap_indices(x3s, y3s)
+        # x3s, y3s = rvizify_indices(x3s, y3s, arr_shape)
+        # plt.plot(x3s, y3s, "g-")
+        
+        # xstart, ystart = rvizify_indices(2498, 1522, arr_shape)
+        # xdest, ydest = rvizify_indices(1998, 1992, arr_shape)
+        # plt.plot(xstart, ystart, "go")
+        # plt.plot(xdest, ydest, "go")
+        
+        # patxs, patys = rvizify_indices(self.pathFinder.path[:, 0], self.pathFinder.path[:, 1], arr_shape)
+        # plt.scatter(patxs, patys, c='pink')
+        # plt.show()    
+        # # exit(0)
+        
+        
+        
+        self.curve_poses = np.array([Pose() for i in range(int(1/0.0001))])
+        
+        def init_curve():    
+            ts = np.arange(0, 1, 0.0001)
+            x3s, y3s = splev(ts, tck3)
+            
+            print(x3s)
+            xp3s, yp3s = splev(ts, tck3, der=1)
+            particle_cloud_pose_array = PoseArray()
+            particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
+            
+            for i in range(0, len(ts), 100):
+                curr_pose = self.curve_poses[i]
+
+                init_pose(curr_pose, x3s[i], y3s[i], np.arctan2(yp3s[i], xp3s[i]))
+            print("ENDING")
+            
+        init_curve()
+        self.publish_curve()
+        
+        '''
+        !!!! DO NOT DELETE !!!!
+        <<<<'''
         
 
 
         # the motion handler
-        self.motion = Motion("naive", self.pathFinder,self.pub_cmd_vel,self.map.info.resolution,self.map.info.origin.position.x,self.map.info.origin.position.y)
+        self.motion = Motion("parametric", self.pathFinder,self.pub_cmd_vel,self.map.info.resolution,self.map.info.origin.position.x,self.map.info.origin.position.y)
         # self.motion = Motion(approach="naive", init_info=None)
         print("THEREEE")
         # initialize shutdown callback
@@ -680,6 +762,7 @@ class ParticleFilter:
 
                     prevT = currT
                     self.publish_particle_cloud()
+                    # self.publish_curve()
                     currT = time.time()
                     print("pub cloud", currT - prevT)
 
@@ -737,6 +820,8 @@ class ParticleFilter:
         
         ind_x = int(((x - pos_x)/map_res))
         ind_y = int(((y - pos_y)/map_res))
+        # ind_x = ((x - pos_x)/map_res).astype(np.int64)
+        # ind_y = ((y - pos_y)/map_res).astype(np.int64)
         return ind_x, ind_y
 
     def to_rviz_coords(self, ind_x, ind_y):
