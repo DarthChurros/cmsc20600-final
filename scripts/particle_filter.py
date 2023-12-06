@@ -38,6 +38,7 @@ from path_finder import PathFinding
 enable_motion_demo = False
 enable_closestMap_viz_demo = False
 
+
 def get_yaw_from_pose(p):
     """ A helper function that takes in a Pose object (geometry_msgs) and returns yaw"""
 
@@ -121,6 +122,21 @@ def demo_visualize_closestMap(map):
     plt.show()
     exit(0)
 
+
+class PointPicker:
+
+    def __init__(self):
+        self.arr = [(2479, 1503), (1998, 1992), (2085,1522), (2505,1517), (2009, 1839), (2206, 1730), (2010,1673), (2500,1660)]
+        self.index = np.random.randint(0,len(self.arr))
+
+    def pick_point(self):
+        new = np.random.randint(0,len(self.arr))
+        while new == self.index:
+            new = np.random.randint(0,len(self.arr))
+        self.index = new
+        return self.arr[new]
+
+
 class ParticleFilter:
 
     def publish_pose_at(self, x, y):
@@ -135,14 +151,12 @@ class ParticleFilter:
         self.particles_pub.publish(particle_cloud_pose_array)
 
 
-
-
     def __init__(self):
 
         # once everything is setup initialized will be set to true
         self.initialized = False        
 
-
+        print("JERE")
         # initialize this particle filter node
         rospy.init_node('turtlebot3_particle_filter')
 
@@ -152,11 +166,15 @@ class ParticleFilter:
         self.odom_frame = "odom"
         self.scan_topic = "scan"
 
+        self.motion_mode = "naive"
+        self.infinite_mode = True
+        self.move_halt = False
+
         # inialize our map
         self.map = OccupancyGrid()
         self.map_set = False # whether map has been set
 
-        print("HERE")
+        self.point_picker = PointPicker()
         
         # closestMap for maze_map
         # self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
@@ -164,19 +182,13 @@ class ParticleFilter:
         self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
         
         
-        self.pathFinder = PathFinding(self.closestMap, start=(2479, 1503), destination=(1998, 1992) ,algorithm="dijkstra",outOfBounds=0.19) 
-        self.pathFinder.compute_path_finding()
-        print("POS")
-        print(self.pathFinder.map[2479][1503])
-        
-        self.pathFinder.compute_path()
-        print("HERE")
-        self.pathFinder.reduce_path(1)
-        print("THEREs")
-        
+        self.init_destination_and_motion()   
         # our addition:
 
         if (enable_closestMap_viz_demo):
+            j = 0
+            for i in self.point_picker.arr:
+                print(self.pathFinder.shortest_dists[i[0]][i[1]], " ", i)
             demo_visualize_closestMap(self.pathFinder.shortest_dists)
         
 
@@ -270,23 +282,34 @@ class ParticleFilter:
         self.robot_estimate_cv = threading.Condition()
 
         while not self.map_set:
+            print("JERE")
             time.sleep(0.1)
         
+        self.motion = Motion(self.motion_mode, self.pathFinder,self.map)
 
 
         # the motion handler
-        self.motion = Motion("parametric", self.pathFinder,self.pub_cmd_vel,self.map.info.resolution,self.map.info.origin.position.x,self.map.info.origin.position.y)
-        # self.motion = Motion(approach="naive", init_info=None)
-        print("THEREEE")
-        # initialize shutdown callback
+        
+
+
         rospy.on_shutdown(lambda : self.halt())
 
-        # intialize the particle cloud
+
+
         self.initialize_particle_cloud()
 
         self.initialized = True
         self.first_init = False
 
+
+
+    def init_destination_and_motion(self):
+        self.pathFinder = PathFinding(self.closestMap, start=(2479, 1503), destination=self.point_picker.pick_point() ,algorithm="dijkstra",outOfBounds=0.2) 
+        self.pathFinder.compute_path_finding()
+        self.pathFinder.compute_path()
+        #self.pathFinder.reduce_path(1)
+
+        self.motion = Motion(self.motion_mode, self.pathFinder,self.map)
 
 
     def get_map(self, data):
@@ -339,6 +362,7 @@ class ParticleFilter:
         '''
         while (not self.map_set):
             # wait until the map is set, you idiot
+            print("JERE")
             time.sleep(0.1)
         
         occup_arr = np.array(self.map.data)
@@ -378,6 +402,7 @@ class ParticleFilter:
         # set particle internal state arrays at corresponding particle position
         self.find_poses[0] = adj_xs # poses[:, i] = [x_i, y_i]
         self.find_poses[1] = adj_ys
+
 
 
     def initialize_particle_cloud(self):
@@ -694,15 +719,25 @@ class ParticleFilter:
 
 
 
-
-
                 if self.pathFinder.at_destination():
-                    self.sound_pub.publish(Sound(0))
-                    rospy.sleep(4)
-                    rospy.signal_shutdown("got bored")            
-
+                    self.motion.halt()
+                    rospy.sleep(2)
+                    self.sound_pub.publish(Sound(0))    
+                    self.move_halt = True
+                    
+                    if self.infinite_mode:
+                        if self.motion_mode == "naive":
+                            self.motion_mode = "parametric"
+                        else: 
+                            self.motion_mode = "naive"  
+                        self.init_destination_and_motion()
+                    else:
+                        rospy.signal_shutdown("got bored")            
+                    self.move_halt = False
                 start = time.time()
-                self.motion.move(self.robot_estimate)
+
+                if not self.move_halt:
+                    self.motion.move(self.robot_estimate)
                 print("move:", time.time()-start)         
 
                 self.odom_pose_last_motion_update = self.odom_pose

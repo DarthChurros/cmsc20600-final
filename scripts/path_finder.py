@@ -30,7 +30,7 @@ def lineseg_dists(p, a, b):
 
 class PathFinding:
     
-    def __init__(self, map, start, destination, algorithm="dijkstra", outOfBounds=0.2, bound=4):
+    def __init__(self, map, start, destination, algorithm="dijkstra", outOfBounds=0.2, bound=40):
         self.algorithm = algorithm
         self.closestMap = map
         boundMap = np.zeros(shape=self.closestMap.shape)
@@ -203,7 +203,6 @@ class PathFinding:
 
         while current_pose != destination:
             temp_path.append(current_pose)
-            print(current_pose)
             current_pose = self.get_next_node(current_pose)
         
         self.path = np.array(temp_path)
