@@ -161,6 +161,43 @@ class Motion:
         
         
         
+        from scipy.interpolate import splprep, splev
+        if (not self.path_set):
+            print("pre sel", self.pathFinder.current_pose)
+            indc_x, indc_y = to_closestMap_indices(self, curr_x, curr_y)
+            self.pathFinder.update_pose((indc_x, indc_y))
+            print("pos sel", self.pathFinder.current_pose)
+            
+            self.pathFinder.compute_path()
+            self.pathFinder.reduce_path(1) # actually works better without this
+            
+            pathxs = self.pathFinder.path[:, 0] * self.map_res + self.pos_x
+            pathys = self.pathFinder.path[:, 1] * self.map_res + self.pos_y
+            
+            tck, u = splprep([pathxs, pathys], k=3,s=0.007)
+            self.tck = tck
+            
+            def init_curve():    
+                ts = np.arange(0, 1, 0.0001)
+                x3s, y3s = splev(ts, tck)
+                
+                print(x3s)
+                xp3s, yp3s = splev(ts, tck, der=1)
+                particle_cloud_pose_array = PoseArray()
+                particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id="map")
+                
+                for i in range(0, len(ts), 100):
+                    curr_pose = self.curve_poses[i]
+
+                    init_pose(curr_pose, x3s[i], y3s[i], np.arctan2(yp3s[i], xp3s[i]))
+            
+            init_curve()
+            self.path_set = True
+        self.publish_curve()
+        
+        
+        
+        
         # start=time.time()
         
         def distance_to_curve(point, tck):
