@@ -97,17 +97,14 @@ def rvizify_indices(x, y, arr_shape):
     return -y + arr_shape[1], x
 
     
-
-    
-
 def demo_visualize_closestMap(map):
     '''
     Demo: plots the closestMap (or whatever you want) as a heat map in matplotlib and exits.
     '''
     import matplotlib.pyplot as plt
 
-    #rvizified_closestMap = rvizify_array(map)
-    plt.imshow(map, cmap='hot', interpolation='nearest', origin="lower")
+    rvizified_closestMap = rvizify_array(map)
+    plt.imshow(rvizified_closestMap, cmap='hot', interpolation='nearest', origin="lower")
         
     plt.show()
     exit(0)
