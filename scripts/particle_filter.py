@@ -98,16 +98,6 @@ def rvizify_indices(x, y, arr_shape):
 
     
 
-def visualize_curve(self):    
-    ts = np.arange(0, 100, 0.1)
-    particle_cloud_pose_array = PoseArray()
-    particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
-    for t in ts:
-        curr_pose = Pose()
-        
-        init_pose(curr_pose, x_lam(t), y_lam(t), np.arctan2(yp_lam(t), xp_lam(t)))
-        particle_cloud_pose_array.poses.append(curr_pose)
-    self.particles_pub.publish(particle_cloud_pose_array)    
     
 
 def demo_visualize_closestMap(map):
@@ -138,25 +128,11 @@ class PointPicker:
 
 
 class ParticleFilter:
-
-    def publish_pose_at(self, x, y):
-        particle_cloud_pose_array = PoseArray()
-        particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
-        particle_cloud_pose_array.poses 
-        
-        newpose = Pose()
-        particle_cloud_pose_array.poses = [newpose]
-        
-        init_pose(newpose, x, y, 0)
-        self.particles_pub.publish(particle_cloud_pose_array)
-
-
     def __init__(self):
 
         # once everything is setup initialized will be set to true
         self.initialized = False        
 
-        print("JERE")
         # initialize this particle filter node
         rospy.init_node('turtlebot3_particle_filter')
 
@@ -176,9 +152,6 @@ class ParticleFilter:
 
         self.point_picker = PointPicker()
         
-        # closestMap for maze_map
-        # self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
-        # closestMap for new1
         self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
         
         
@@ -186,7 +159,6 @@ class ParticleFilter:
         # our addition:
 
         if (enable_closestMap_viz_demo):
-            j = 0
             for i in self.point_picker.arr:
                 print(self.pathFinder.shortest_dists[i[0]][i[1]], " ", i)
             demo_visualize_closestMap(self.pathFinder.shortest_dists)
@@ -279,64 +251,9 @@ class ParticleFilter:
         self.robot_estimate_updated = False
         self.robot_estimate_cv = threading.Condition()
 
-        while not self.map_set:
-            print("JERE")
-            time.sleep(0.1)
+        assert (self.map_set)
         
         self.motion = Motion(self.motion_mode, self.pathFinder,self.map)
-
-        '''
-        >>>>
-        !!!! DO NOT DELETE !!!!
-        curve visualization aid section. '''
-        # 
-        # import matplotlib.pyplot as plt
-        # closestMap = self.closestMap
-        
-        # cutoff = 0.01
-        # closestMap[closestMap >= cutoff] = 1
-        # rvizified_closestMap = rvizify_array(closestMap)
-        # plt.imshow(rvizified_closestMap, cmap='hot', interpolation='nearest', origin="lower")
-        
-        from scipy.interpolate import splprep, splev
-
-    
-        # # plt.imshow(rvizify_array(self.pathFinder.map), cmap='hot', interpolation='nearest', origin="lower")
-        
-        # arr_shape = rvizified_closestMap.shape
-        # pathxs, pathys = self.to_rviz_coords(self.pathFinder.path[:, 0], self.pathFinder.path[:, 1])
-        # tck, u = splprep([pathxs, pathys], k=1, s=0)
-        # tck3, u = splprep([pathxs, pathys], k=3, s=0.005)
-        # tck3, u = splprep([pathxs, pathys], k=3, s=0.01)
-        
-        
-        
-        # ts = np.arange(0, 1, 0.0001)
-        # xs, ys = splev(ts, tck)
-        # xs, ys = self.to_closestMap_indices(xs, ys)
-        # xs, ys = rvizify_indices(xs, ys, arr_shape)
-        # plt.plot(xs, ys, "b-")
-        
-        # ts = np.arange(0, 1, 0.0001)
-        # x3s, y3s = splev(ts, tck3)
-        # x3s, y3s = self.to_closestMap_indices(x3s, y3s)
-        # x3s, y3s = rvizify_indices(x3s, y3s, arr_shape)
-        # plt.plot(x3s, y3s, "g-")
-        
-        # xstart, ystart = rvizify_indices(2498, 1522, arr_shape)
-        # xdest, ydest = rvizify_indices(1998, 1992, arr_shape)
-        # plt.plot(xstart, ystart, "go")
-        # plt.plot(xdest, ydest, "go")
-        
-        # patxs, patys = rvizify_indices(self.pathFinder.path[:, 0], self.pathFinder.path[:, 1], arr_shape)
-        # plt.scatter(patxs, patys, c='pink')
-        # plt.show()    
-        # # exit(0)
-        
-        '''
-        !!!! DO NOT DELETE !!!!
-        <<<<'''
-        
 
 
         # the motion handler
@@ -1014,9 +931,6 @@ class ParticleFilter:
             self.robot_estimate_cv.notify_all()
     
 
-def wrapto_pi(angle):
-    return (angle + np.pi) % (2 * np.pi) - np.pi
-    # https://stackoverflow.com/questions/15927755/opposite-of-numpy-unwrap
 
 if __name__=="__main__":
     
