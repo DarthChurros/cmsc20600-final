@@ -137,6 +137,14 @@ that it's arrived. While this wasn't strictly necessary to achieve our initial
 goals, it was a fun exercise in poking around the robot's error reporting to
 tell it to announce "catastrophic failure" whenever it succeeded.
 
+## ROS Node Diagram
+
+## Execution
+
+1. Run roscore.
+2. Run the project.
+3. Profit.
+
 ## Challenges
 
 A challenge we *didn't* have (but were anticipating) was difficulty syncing the
