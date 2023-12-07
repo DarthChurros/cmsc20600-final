@@ -8,7 +8,13 @@
 Our project aimed to extend our particle filter localization to enable a robot
 to not only identify its position but also navigate to arbitrary other points in
 the provided maze. With a combination of informed pathfinding and localization,
-our goal was to have the robot move to a provided location.
+our goal was to have the robot move to a provided location. The robot scans its
+surroundings, relaying them to a ROS node that determines its location and
+issues movement commands to get it to its destination. The latest submission is
+largely successful in this, navigating the maze with minimal collision and
+efficient routes.
+
+## System Architecture
 
 We used two different approaches to navigate through the maze, which we will
 refer to as the **gradient** method and the
@@ -16,13 +22,13 @@ refer to as the **gradient** method and the
 
 ### Particle filter optimization
 
-Because navigating the maze required live
-positional updates from the robot, our particle filter needed to be both fast
-and precise in order to provide motion commands in real time. We built on the
-particle filter project (which was already heavily optimized) in order to make
-this project work.
+Because navigating the maze required live positional updates from the robot, our
+particle filter needed to be both fast and precise in order to provide motion
+commands in real time. We built on the particle filter project (which was
+already heavily optimized) in order to make this project work. All or most of
+these changes happened in **particle_filter.py**.
 
-- Further vectorization, particularly in measurement_model(), through numpy
+- Further vectorization, particularly in **measurement_model()**, through numpy
 - Distinguishing "deep scans" for initialization from "quick scans" to be
 used in real time
 - Increased map resolution to account for very small variations in position
@@ -44,16 +50,23 @@ Though A* would somewhat optimize this process by only searching part of the
 maze, we computed all optimal paths for three reasons: ease of implementation,
 built-in error handling, and to remove the need for recomputation.
 
-This is where the solutions we applied start to diverge. In the gradient method,
-we used the entire shortest paths tree to determine the best new node to go to
-from *any point in the graph*. This solution didn't decide on a path to the
-destination before the robot started moving; it just determined the next best
-action one step at a time given the state of the robot and the maze layout.
+This is where the solutions we applied start to diverge. The logic for both can
+be found in **path_finder.py**.
 
-In our parametric movement model, we relied on a precomputed path derived from the
-Dijkstra tree. We originally intended to compute this path with A*, but the
+#### Gradient
+
+In the gradient method, we used the entire shortest paths tree to determine the
+best new node to go to from *any point in the graph*. This solution didn't
+decide on a path to the destination before the robot started moving; it just
+determined the next best action one step at a time given the state of the robot
+and the maze layout.
+
+#### Parametric
+
+In our parametric movement model, we relied on a precomputed path derived from
+the Dijkstra tree. We originally intended to compute this path with A*, but the
 performance drop from computing the full tree was negligible, so we chose to
-reuse that logic--despite our project goal, we never actually implemented A*
+reuse that logic; despite our project goal, we ironically never implemented A*
 (though the path we found wouldn't have changed if we had).
 
 ### Path modification
@@ -63,7 +76,8 @@ before applying to to the robot's motion in order to simplify movement planning
 and execution. Because the LiDAR only gives us five scans per second, the rate
 at which we can tell the robot to update its velocity is limited to 5Hz. This
 means that the less frequently we need to issue movement updates, the more
-reliably the robot will follow the provided path.
+reliably the robot will follow the provided path. Both solutions handle this
+in **path_finder.py**.
 
 #### Gradient
 
@@ -88,10 +102,38 @@ curve-fitting, which we found to give more reliable results.
 
 Once the robot was in the maze, we had to continuously issue commands based on
 its last known position and our knowledge of the layout. Despite our best
-efforts, the robot would occasionally stray too close to a wall, meaning that
-our movement strategies had to be designed around collision avoidance and
-recovery.
+efforts, the robot would occasionally veer too close to a wall, meaning that our
+movement strategies had to be designed around collision avoidance and recovery.
+This code can be found in **motion.py**.
 
 #### Gradient
 
+The advantage to this approach was that even if the robot strayed from the
+optimal path, the logic for determining its next movement was identical, since
+we had already precomputed the best *next step* from any position in the maze.
+The exception to this was the out-of-bounds "dead zones" we defined, where the
+robot would be close enough to the wall that it would either have already
+crashed or be at risk of doing so. If the robot finds itself in these areas,
+our solution prioritizes moving it back into valid territory before resuming the
+normal control flow.
+
 #### Parametric
+
+After a path was computed and parameterized, the robot's best guess of what a
+collision-free route might look like was that path. As a result, we wanted to
+nudge the robot toward the path while allowing for some uncertainty in the
+localization. We achieved this by computing the robot's velocity at any point as 
+the sum of the tangent vector to the path near its position and a corrective
+component vector based on the distance from the path. We experimented with
+different weights and scalings for these components before settling on the
+linear scalings we currently use. Unlike the gradient method, this solution
+will not backtrack in case of a collision; it will just continue to try and
+merge with the path.
+
+### Buzzer
+
+When the robot reaches its destination, its buzzer plays a jingle to announce
+that it's arrived. While this wasn't strictly necessary to achieve our initial
+goals, it was a fun exercise in poking around the robot's error reporting to
+tell it to announce "catastrophic failure" whenever it succeeded.
+
