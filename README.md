@@ -137,3 +137,40 @@ that it's arrived. While this wasn't strictly necessary to achieve our initial
 goals, it was a fun exercise in poking around the robot's error reporting to
 tell it to announce "catastrophic failure" whenever it succeeded.
 
+## Challenges
+
+A challenge we *didn't* have (but were anticipating) was difficulty syncing the
+robot's localization with movement commands. We preemptively optimized the
+particle filter to deal with this issue, so it's possible we resolved it before
+it ever had the chance to affect our progress.
+
+Our main concern was collisions. Because the robot didn't obey our directions to
+the letter and because our safe zones were determined based on a slightly
+inaccurate model of the robot's size and shape, most of our time was spent
+ensuring that the robot wouldn't clip a wall and get stuck.
+
+## Future Work
+
+Most of our stretch goals for this project—a traveling salesman solution,
+multi-agent pathfinding, reduced network dependency, a user-friendly
+interface—unfortunately weren't feasible in the timeframe we had, since the
+first two wouldn't work without a high degree of reliability in maze navigation
+while the last two were simply lower priority. Given more time, though, we would
+try to tackle these goals to smooth out and extend the work we've already done.
+
+## Takeaways
+
+A lot of these were things we'd suspected that were hammered home while working
+on this project
+
+- When in doubt, NumPy will probably fix your problem. Either it'll speed up
+your logic by several orders of magnitude or it has a ready-made solution that
+does exactly the thing you need.
+
+!["I have a function for that"](https://media.giphy.com/media/Qx5BmbWmAQGeU0b0LV/giphy.gif)
+
+- Moving parts introduce uncertainty. Motors are inherently unpredictable. If
+you need something precise from one, then check its work frequently.
+- Git branches are a useful way to ensure that one feature can be developed and
+tested without interference. We learned this lesson the hard way every time our
+robot crashed during the demo.
