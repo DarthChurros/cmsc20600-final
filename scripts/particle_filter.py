@@ -127,6 +127,7 @@ class PointPicker:
 
     def __init__(self):
         self.arr = [(2479, 1503), (1998, 1992), (2085,1522), (2505,1517), (2009, 1839), (2206, 1730), (2010,1673), (2500,1660)]
+        # self.arr = [(2479, 1503), (1998, 1992)]
         self.index = np.random.randint(0,len(self.arr))
 
     def pick_point(self):
@@ -166,7 +167,7 @@ class ParticleFilter:
         self.odom_frame = "odom"
         self.scan_topic = "scan"
 
-        self.motion_mode = "naive"
+        self.motion_mode = "parametric"
         self.infinite_mode = True
         self.move_halt = False
 
@@ -777,10 +778,10 @@ class ParticleFilter:
                     self.move_halt = True
                     
                     if self.infinite_mode:
-                        if self.motion_mode == "naive":
-                            self.motion_mode = "parametric"
-                        else: 
-                            self.motion_mode = "naive"  
+                        # if self.motion_mode == "naive":
+                        #     self.motion_mode = "parametric"
+                        # else: 
+                        #     self.motion_mode = "naive"  
                         self.init_destination_and_motion()
                     else:
                         rospy.signal_shutdown("got bored")            
@@ -803,7 +804,7 @@ class ParticleFilter:
         av_x = np.average(self.poses[0, :], weights=self.weights)
         av_y = np.average(self.poses[1, :], weights=self.weights)
         av_yaw = np.average(self.yaws, weights=self.weights)
-        
+                
         # Update current robot pose to computed averages
         pose = self.robot_estimate
         print("curr indices:", self.to_closestMap_indices(pose.position.x, pose.position.y))

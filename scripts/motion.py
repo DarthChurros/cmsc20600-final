@@ -25,6 +25,30 @@ def to_closestMap_indices(self, x, y):
     ind_y = int(((y - self.pos_y)/self.map_res))
     return ind_x, ind_y
 
+def absolute_cutoff(x, limit):
+    '''
+    Ensure that x has a magnitude of at most limit, rounding to the nearest
+    interval of [-limit, limit] if necessary.
+    
+    Takes:
+    - a value x
+    - limit > 0
+    
+    Outputs:
+    - If x falls within [-limit, limit], return x
+    - Else, round x to the nearest endpoint of [-limit, limit].
+    '''
+    assert (limit > 0)
+    if x > limit:
+        # x greater than limit, floor to limit
+        return limit
+    elif x < -limit:
+        # x less than -limit, ceil to -limit
+        return -limit
+    else:
+        # x in bound, return as is
+        return x
+
 
 def halt(publisher):
     '''Halts the robot. i.e. publishes a 0 Twist to cmd_vel'''
@@ -121,8 +145,11 @@ class Motion:
         curr_pose_updated = False
 
         indc_x, indc_y = to_closestMap_indices(self, curr_x, curr_y)
-        if self.pathFinder.shortest_dists[indc_x][indc_y] == -1:
-            self.path_set = False 
+        # if self.pathFinder.shortest_dists[indc_x][indc_y] == -1:
+        #     self.move_naive(curr_pose)
+        #     self.curve_poses = np.array([Pose() for i in range(int(1/0.0001))]) 
+        #     self.path_set = False 
+        #     return
         
         from scipy.interpolate import splprep, splev
         if (not self.path_set):
@@ -132,49 +159,14 @@ class Motion:
             print("pos sel", self.pathFinder.current_pose)
             
             self.pathFinder.compute_path()
-            self.pathFinder.reduce_path(1) # actually works better without this
+            # self.pathFinder.reduce_path(0.0001) # actually works better without this
             
             pathxs = self.pathFinder.path[:, 0] * self.map_res + self.pos_x
             pathys = self.pathFinder.path[:, 1] * self.map_res + self.pos_y
             
-            tck, u = splprep([pathxs, pathys], k=3,s=0.007)
-            self.tck = tck
-            
-            def init_curve():    
-                ts = np.arange(0, 1, 0.0001)
-                x3s, y3s = splev(ts, tck)
-                
-                print(x3s)
-                xp3s, yp3s = splev(ts, tck, der=1)
-                particle_cloud_pose_array = PoseArray()
-                particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id="map")
-                
-                for i in range(0, len(ts), 100):
-                    curr_pose = self.curve_poses[i]
-
-                    init_pose(curr_pose, x3s[i], y3s[i], np.arctan2(yp3s[i], xp3s[i]))
-            
-            init_curve()
-            self.path_set = True
-        self.publish_curve()
-        
-        
-        
-        
-        from scipy.interpolate import splprep, splev
-        if (not self.path_set):
-            print("pre sel", self.pathFinder.current_pose)
-            indc_x, indc_y = to_closestMap_indices(self, curr_x, curr_y)
-            self.pathFinder.update_pose((indc_x, indc_y))
-            print("pos sel", self.pathFinder.current_pose)
-            
-            self.pathFinder.compute_path()
-            self.pathFinder.reduce_path(1) # actually works better without this
-            
-            pathxs = self.pathFinder.path[:, 0] * self.map_res + self.pos_x
-            pathys = self.pathFinder.path[:, 1] * self.map_res + self.pos_y
-            
-            tck, u = splprep([pathxs, pathys], k=3,s=0.007)
+            tck, u = splprep([pathxs, pathys], k=3,s=0.01)
+            # print(">!!U!!<: ", u)
+            # tck, u = splprep([pathxs, pathys], k=3,s=0)
             self.tck = tck
             
             def init_curve():    
@@ -226,10 +218,25 @@ class Motion:
         
         
         k = len(self.pathFinder.path) / 924
-        corr_weight = 30
+        corr_weight = 45
+        # corr_vel = np.array([clos_x - curr_x, clos_y - curr_y])
+        # corr_vel *= np.abs(corr_vel) * corr_weight
         corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * corr_weight
         curve_vel = np.array([curve_x, curve_y])
         total_vel = (corr_vel + curve_vel).astype(float)
+        
+        cross = np.cross(curve_vel, total_vel)
+        dott = np.dot(curve_vel, total_vel)
+        anger = np.arctan2(np.linalg.norm(cross), dott)
+        print("anggger: ", anger * 180 / np.pi)
+        # ang1 = np.pi/6
+        # ang2 = -np.pi/6
+        # if anger > ang1:
+        #     total_vel[0] = (curve_vel[0] * np.cos(ang1) - curve_vel[1] * np.sin(ang1))
+        #     total_vel[1] = (curve_vel[0] * np.sin(ang1) + curve_vel[1] * np.cos(ang1))       
+        # elif anger < ang2:
+        #     total_vel[0] = (curve_vel[0] * np.cos(ang2) - curve_vel[1] * np.sin(ang2))
+        #     total_vel[1] = (curve_vel[0] * np.sin(ang2) + curve_vel[1] * np.cos(ang2))
         
         if enable_naive_debug:
             next_pose = Pose()
@@ -248,11 +255,12 @@ class Motion:
         self.pathFinder.update_pose((tempx,tempy))
             
         # print("time: ", time.time() - start)
-        lin_error = (abs(ang_error) / np.pi - 1) ** 10
+        lin_error = 0.6 * absolute_cutoff((abs(ang_error) / np.pi - 1) ** 10, 0.26)
+        ang_error = absolute_cutoff(2*k*ang_error, 1)
         
         # this combo is also good:
-        # self.pub_cmd_vel.publish(Twist(linear=Vector3(0.8*lin_error,0,0),angular=Vector3(0,0,2*ang_error)))
-        self.pub_cmd_vel.publish(Twist(linear=Vector3(4*k*lin_error,0,0),angular=Vector3(0,0,2*ang_error)))
+        self.pub_cmd_vel.publish(Twist(linear=Vector3(lin_error,0,0),angular=Vector3(0,0,ang_error)))
+        # self.pub_cmd_vel.publish(Twist(linear=Vector3(6*k*lin_error,0,0),angular=Vector3(0,0,2*ang_error)))
         
 
     def move_naive(self,curr_pose):
