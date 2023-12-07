@@ -25,6 +25,31 @@ def to_closestMap_indices(self, x, y):
     ind_y = int(((y - self.pos_y)/self.map_res))
     return ind_x, ind_y
 
+def absolute_cutoff(x, limit):
+    '''
+    Ensure that x has a magnitude of at most limit, rounding to the nearest
+    interval of [-limit, limit] if necessary.
+    
+    Takes:
+    - a value x
+    - limit > 0
+    
+    Outputs:
+    - If x falls within [-limit, limit], return x
+    - Else, round x to the nearest endpoint of [-limit, limit].
+    '''
+    assert (limit > 0)
+    if x > limit:
+        # x greater than limit, floor to limit
+        return limit
+    elif x < -limit:
+        # x less than -limit, ceil to -limit
+        return -limit
+    else:
+        # x in bound, return as is
+        return x
+
+
 
 def halt(publisher):
     '''Halts the robot. i.e. publishes a 0 Twist to cmd_vel'''
@@ -118,11 +143,8 @@ class Motion:
         curr_x = curr_pose.position.x
         curr_y = curr_pose.position.y
         curr_yaw = get_yaw_from_pose(curr_pose)
-        curr_pose_updated = False
 
         indc_x, indc_y = to_closestMap_indices(self, curr_x, curr_y)
-        if self.pathFinder.shortest_dists[indc_x][indc_y] == -1:
-            self.path_set = False 
         
         from scipy.interpolate import splprep, splev
         if (not self.path_set):
@@ -132,7 +154,7 @@ class Motion:
             print("pos sel", self.pathFinder.current_pose)
             
             self.pathFinder.compute_path()
-            self.pathFinder.reduce_path(1) # actually works better without this
+            self.pathFinder.reduce_path(1)
             
             pathxs = self.pathFinder.path[:, 0] * self.map_res + self.pos_x
             pathys = self.pathFinder.path[:, 1] * self.map_res + self.pos_y
@@ -158,47 +180,6 @@ class Motion:
             self.path_set = True
         self.publish_curve()
         
-        
-        
-        
-        from scipy.interpolate import splprep, splev
-        if (not self.path_set):
-            print("pre sel", self.pathFinder.current_pose)
-            indc_x, indc_y = to_closestMap_indices(self, curr_x, curr_y)
-            self.pathFinder.update_pose((indc_x, indc_y))
-            print("pos sel", self.pathFinder.current_pose)
-            
-            self.pathFinder.compute_path()
-            self.pathFinder.reduce_path(1) # actually works better without this
-            
-            pathxs = self.pathFinder.path[:, 0] * self.map_res + self.pos_x
-            pathys = self.pathFinder.path[:, 1] * self.map_res + self.pos_y
-            
-            tck, u = splprep([pathxs, pathys], k=3,s=0.007)
-            self.tck = tck
-            
-            def init_curve():    
-                ts = np.arange(0, 1, 0.0001)
-                x3s, y3s = splev(ts, tck)
-                
-                print(x3s)
-                xp3s, yp3s = splev(ts, tck, der=1)
-                particle_cloud_pose_array = PoseArray()
-                particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id="map")
-                
-                for i in range(0, len(ts), 100):
-                    curr_pose = self.curve_poses[i]
-
-                    init_pose(curr_pose, x3s[i], y3s[i], np.arctan2(yp3s[i], xp3s[i]))
-            
-            init_curve()
-            self.path_set = True
-        self.publish_curve()
-        
-        
-        
-        
-        # start=time.time()
         
         def distance_to_curve(point, tck):
             x, y = point
@@ -252,7 +233,7 @@ class Motion:
         
         # this combo is also good:
         # self.pub_cmd_vel.publish(Twist(linear=Vector3(0.8*lin_error,0,0),angular=Vector3(0,0,2*ang_error)))
-        self.pub_cmd_vel.publish(Twist(linear=Vector3(4*k*lin_error,0,0),angular=Vector3(0,0,2*ang_error)))
+        self.pub_cmd_vel.publish(Twist(linear=Vector3(0.5*absolute_cutoff(lin_error, 1),0,0),angular=Vector3(0,0,2*ang_error)))
         
 
     def move_naive(self,curr_pose):
