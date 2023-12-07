@@ -729,17 +729,6 @@ class ParticleFilter:
             self.robot_estimate_cv.notify_all()
         return
     
-    def to_closestMap_indices(self, x, y):
-        map_res = self.map.info.resolution
-        pos_x = self.map.info.origin.position.x
-        pos_y = self.map.info.origin.position.y
-        
-        ind_x = int(((x - pos_x)/map_res))
-        ind_y = int(((y - pos_y)/map_res))
-        # ind_x = ((x - pos_x)/map_res).astype(np.int64)
-        # ind_y = ((y - pos_y)/map_res).astype(np.int64)
-        return ind_x, ind_y
-
     def to_rviz_coords(self, ind_x, ind_y):
         map_res = self.map.info.resolution
         pos_x = self.map.info.origin.position.x
@@ -748,6 +737,16 @@ class ParticleFilter:
         x = (ind_x * map_res) + pos_x
         y = (ind_y * map_res) + pos_y
         return x, y
+    
+    def to_closestMap_indices(self, x, y):
+        map_res = self.map.info.resolution
+        pos_x = self.map.info.origin.position.x
+        pos_y = self.map.info.origin.position.y
+        
+        ind_x = int(((x - pos_x)/map_res))
+        ind_y = int(((y - pos_y)/map_res))
+        return ind_x, ind_y
+
         
 
 
