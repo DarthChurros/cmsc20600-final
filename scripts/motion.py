@@ -159,7 +159,7 @@ class Motion:
             pathxs = self.pathFinder.path[:, 0] * self.map_res + self.pos_x
             pathys = self.pathFinder.path[:, 1] * self.map_res + self.pos_y
             
-            tck, u = splprep([pathxs, pathys], k=3,s=0.007)
+            tck, u = splprep([pathxs, pathys], k=3,s=0.006)
             self.tck = tck
             
             def init_curve():    
@@ -233,7 +233,7 @@ class Motion:
         
         # this combo is also good:
         # self.pub_cmd_vel.publish(Twist(linear=Vector3(0.8*lin_error,0,0),angular=Vector3(0,0,2*ang_error)))
-        self.pub_cmd_vel.publish(Twist(linear=Vector3(0.5*absolute_cutoff(lin_error, 1),0,0),angular=Vector3(0,0,2*ang_error)))
+        self.pub_cmd_vel.publish(Twist(linear=Vector3(0.3*absolute_cutoff(lin_error, 1),0,0),angular=Vector3(0,0,2*ang_error)))
         
 
     def move_naive(self,curr_pose):
