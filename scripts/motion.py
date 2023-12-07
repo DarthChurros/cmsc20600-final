@@ -133,7 +133,7 @@ class Motion:
             print("pos sel", self.pathFinder.current_pose)
             
             self.pathFinder.compute_path()
-            # self.pathFinder.reduce_path(1) # actually works better without this
+            self.pathFinder.reduce_path(1)
             
             pathxs = self.pathFinder.path[:, 0] * self.map_res + self.pos_x
             pathys = self.pathFinder.path[:, 1] * self.map_res + self.pos_y
