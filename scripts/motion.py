@@ -144,10 +144,7 @@ class Motion:
         
         from scipy.interpolate import splprep, splev
         if (not self.path_set):
-            print("pre sel", self.pathFinder.current_pose)
-            
             self.pathFinder.update_pose((indc_x, indc_y))
-            print("pos sel", self.pathFinder.current_pose)
             
             self.pathFinder.compute_path()
             self.pathFinder.reduce_path(1)
@@ -224,11 +221,8 @@ class Motion:
 
         self.pathFinder.update_pose((tempx,tempy))
             
-        # print("time: ", time.time() - start)
         lin_error = (abs(ang_error) / np.pi - 1) ** 10
         
-        # this combo is also good:
-        # self.pub_cmd_vel.publish(Twist(linear=Vector3(0.8*lin_error,0,0),angular=Vector3(0,0,2*ang_error)))
         self.pub_cmd_vel.publish(Twist(linear=Vector3(0.3*absolute_cutoff(lin_error, 1),0,0),angular=Vector3(0,0,2*ang_error)))
         
 
@@ -242,17 +236,14 @@ class Motion:
 
         self.pathFinder.update_pose((tempx,tempy))
 
-        print("distance:",self.pathFinder.shortest_dists[tempx][tempy])
                 
         move_vector, next_node = self.pathFinder.naive_path_finder(0.05/self.map_res)
                 
 
-        # next_node = ((next_node[0] * map_res), (next_node[1] * map_res))
         next_yaw = np.arctan2(move_vector[1],move_vector[0])
         mv_x = np.cos(next_yaw)
         mv_y = np.sin(next_yaw)
         
-        print("HERE")
         self.pathFinder.compute_path()
         self.curve_poses = np.array([Pose() for i in range(int(len(self.pathFinder.path)/10)+1)])
         for i in range(len(self.pathFinder.path)-1):
@@ -264,12 +255,10 @@ class Motion:
                 init_pose(newPose, (m[0] * self.map_res) + self.pos_x , (m[1] * self.map_res) + self.pos_y, temp_yaw)
                 self.curve_poses[int(i/10)] = newPose
         self.publish_curve()
-        print("HERE")
 
         error = 0.25
-        print(next_yaw,get_yaw_from_pose(curr_pose))
+        # print(next_yaw,get_yaw_from_pose(curr_pose))
         ang_vel = 10 * wrapto_pi(next_yaw- get_yaw_from_pose(curr_pose))
-        #np.sign(np.sin(next_yaw - get_yaw_from_pose(curr_pose))) * np.arccos(mv_y * move_vector[0] + mv_x * move_vector[1])/np.pi
 
         lin_vel =  200 * self.map_res * pow((1 + np.cos(ang_vel))/2,10)
 

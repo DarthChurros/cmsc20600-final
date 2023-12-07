@@ -142,12 +142,25 @@ class PathFinding:
                 return self.find_nearest_non_negative(node)
             else:
                 for i in range(len(adjacent)):
-                    if ((self.shortest_dists[adjacent[min][0]][adjacent[min][1]] == -1) or 
-                    ((self.shortest_dists[adjacent[i][0]][adjacent[i][1]] != -1) and
-                    ((self.shortest_dists[adjacent[i][0]][adjacent[i][1]] == self.shortest_dists[adjacent[min][0]][adjacent[min][1]] and
-                    self.closestMap[adjacent[i][0]][adjacent[i][1]] > self.closestMap[adjacent[min][0]][adjacent[min][1]]) or 
-                        (self.shortest_dists[adjacent[i][0]][adjacent[i][1]] < self.shortest_dists[adjacent[min][0]][adjacent[min][1]])))):
+                    minx = adjacent[min][0]
+                    miny = adjacent[min][1]
+                    
+                    curx = adjacent[i][0]
+                    cury = adjacent[i][1]
+                    
+                    if (self.shortest_dists[minx][miny] == -1):
                         min = i
+                        continue
+                    
+                    node_valid = self.shortest_dists[curx][cury] != -1
+                    path_len_equal = self.shortest_dists[curx][cury] == self.shortest_dists[minx][miny]
+                    farther_from_wall = self.closestMap[curx][cury] > self.closestMap[minx][miny]
+                    closer_to_dest = self.shortest_dists[curx][cury] < self.shortest_dists[minx][miny]
+                    
+                    
+                    if (node_valid and ((path_len_equal and farther_from_wall) or closer_to_dest)):
+                        min = i
+                        
                 return adjacent[min]
         elif self.algorithm == "a_star":
             return None
