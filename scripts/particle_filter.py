@@ -156,7 +156,6 @@ class ParticleFilter:
         
         
         self.init_destination_and_motion()   
-        # our addition:
 
         if (enable_closestMap_viz_demo):
             for i in self.point_picker.arr:
@@ -272,11 +271,8 @@ class ParticleFilter:
 
 
     def init_destination_and_motion(self):
-        self.pathFinder = PathFinding(self.closestMap, start=(2479, 1503), destination=self.point_picker.pick_point() ,algorithm="dijkstra",outOfBounds=0.2) 
+        self.pathFinder = PathFinding(self.closestMap, destination=self.point_picker.pick_point() ,algorithm="dijkstra",outOfBounds=0.2) 
         self.pathFinder.compute_path_finding()
-        self.pathFinder.compute_path()
-        #self.pathFinder.reduce_path(1)
-
         self.motion = Motion(self.motion_mode, self.pathFinder,self.map)
 
 
@@ -685,6 +681,10 @@ class ParticleFilter:
                     self.finding = False
 
 
+                start = time.time()
+                if not self.move_halt:
+                    self.motion.move(self.robot_estimate)
+                print("move:", time.time()-start)         
 
 
                 if self.pathFinder.at_destination():
@@ -702,11 +702,7 @@ class ParticleFilter:
                     else:
                         rospy.signal_shutdown("got bored")            
                     self.move_halt = False
-                start = time.time()
 
-                if not self.move_halt:
-                    self.motion.move(self.robot_estimate)
-                print("move:", time.time()-start)         
 
                 self.odom_pose_last_motion_update = self.odom_pose
                 self.first_init = False
