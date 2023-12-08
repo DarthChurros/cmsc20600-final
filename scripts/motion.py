@@ -121,9 +121,10 @@ class Motion:
         curr_pose_updated = False
 
         indc_x, indc_y = to_closestMap_indices(self, curr_x, curr_y)
-        #if self.pathFinder.shortest_dists[indc_x][indc_y] == -1:
-        #    self.move_naive() 
-        #    self.curve_poses = np.array([Pose() for i in range(int(1/0.0001))]) 
+        if self.pathFinder.closestMap[indc_x][indc_y] < self.path_finder.bound - 0.02:
+            self.move_naive() 
+            self.curve_poses = np.array([Pose() for i in range(int(1/0.0001))]) 
+            remove
         
         from scipy.interpolate import splprep, splev
         if (not self.path_set):

@@ -248,7 +248,7 @@ class PathFinding:
                     if self.shortest_dists[j[0]][j[1]] == -1 and self.map[j[0]][j[1]] == 1:
                         tempUnchecked.append(j)
                         # distance update without diagonals
-                         self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + 1
+                        self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + 1
                         # distance update with diagonals
                         # self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + np.hypot(i[0]-j[0],i[1]-j[1]) + self.costs[i[0]][i[1]]
                         #self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + np.hypot(i[0]-j[0],i[1]-j[1])
