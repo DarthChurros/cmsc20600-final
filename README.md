@@ -26,9 +26,9 @@ Because navigating the maze required live positional updates from the robot, our
 particle filter needed to be both fast and precise in order to provide motion
 commands in real time. We built on the particle filter project (which was
 already heavily optimized) in order to make this project work. All or most of
-these changes happened in **particle_filter.py**.
+these changes happened in `particle_filter.py`.
 
-- Further vectorization, particularly in **measurement_model()**, through numpy
+- Further vectorization, particularly in `measurement_model()`, through numpy
 - Distinguishing "deep scans" for initialization from "quick scans" to be
 used in real time
 - Increased map resolution to account for very small variations in position
@@ -51,7 +51,7 @@ maze, we computed all optimal paths for three reasons: ease of implementation,
 built-in error handling, and to remove the need for recomputation.
 
 This is where the solutions we applied start to diverge. The logic for both can
-be found in **path_finder.py**.
+be found in `path_finder.py`.
 
 #### Gradient
 
@@ -77,7 +77,7 @@ and execution. Because the LiDAR only gives us five scans per second, the rate
 at which we can tell the robot to update its velocity is limited to 5Hz. This
 means that the less frequently we need to issue movement updates, the more
 reliably the robot will follow the provided path. Both solutions handle this
-in **path_finder.py**.
+in `path_finder.py`.
 
 #### Gradient
 
@@ -104,7 +104,7 @@ Once the robot was in the maze, we had to continuously issue commands based on
 its last known position and our knowledge of the layout. Despite our best
 efforts, the robot would occasionally veer too close to a wall, meaning that our
 movement strategies had to be designed around collision avoidance and recovery.
-This code can be found in **motion.py**.
+This code can be found in `motion.py`.
 
 #### Gradient
 
@@ -137,6 +137,19 @@ that it's arrived. While this wasn't strictly necessary to achieve our initial
 goals, it was a fun exercise in poking around the robot's error reporting to
 tell it to announce "catastrophic failure" whenever it succeeded.
 
+## ROS Node Diagram
+
+![Node diagram for maze navigator](assets/node_diagram.jpg)
+
+## Execution
+
+1. In a terminal window, run
+`roslaunch astar_project visualize_particles.launch`.
+2. In a second window, run `rosrun astar_project particle_filter.py`.
+3. The demo should run. It chooses a location in the maze and navigates to it,
+then repeats, alternating between gradient and parametric navigation for each
+new destination.
+
 ## Challenges
 
 A challenge we *didn't* have (but were anticipating) was difficulty syncing the
@@ -157,6 +170,9 @@ interface—unfortunately weren't feasible in the timeframe we had, since the
 first two wouldn't work without a high degree of reliability in maze navigation
 while the last two were simply lower priority. Given more time, though, we would
 try to tackle these goals to smooth out and extend the work we've already done.
+We would also have liked to refactor our work so that the particle filter and
+movement controller ran in separate nodes; as of right now, they don't, though
+the logic is handled in separate python files.
 
 ## Takeaways
 
