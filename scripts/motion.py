@@ -227,9 +227,7 @@ class Motion:
         
 
     def move_naive(self,curr_pose):
-       # This is where the main logic of the particle filter is carried out
-
-        
+        #Converts world coords to map coords
         tempx = int((curr_pose.position.x - self.pos_x)/self.map_res)
         tempy = int((curr_pose.position.y - self.pos_y)/self.map_res)
 
@@ -239,11 +237,12 @@ class Motion:
                 
         move_vector, next_node = self.pathFinder.naive_path_finder(0.05/self.map_res)
                 
-
+        #Computs yaw
         next_yaw = np.arctan2(move_vector[1],move_vector[0])
         mv_x = np.cos(next_yaw)
         mv_y = np.sin(next_yaw)
         
+        #Computes path curve to publish
         self.pathFinder.compute_path()
         self.curve_poses = np.array([Pose() for i in range(int(len(self.pathFinder.path)/10)+1)])
         for i in range(len(self.pathFinder.path)-1):
@@ -256,8 +255,9 @@ class Motion:
                 self.curve_poses[int(i/10)] = newPose
         self.publish_curve()
 
+
+        
         error = 0.25
-        # print(next_yaw,get_yaw_from_pose(curr_pose))
         ang_vel = 10 * wrapto_pi(next_yaw- get_yaw_from_pose(curr_pose))
 
         lin_vel =  200 * self.map_res * pow((1 + np.cos(ang_vel))/2,10)
