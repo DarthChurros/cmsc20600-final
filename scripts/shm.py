@@ -30,8 +30,8 @@ class SharedInterface():
         
         self.path_cv = Condition()
         self.path_initialized = Value('i', False, lock=False)
-        self.__path_xs = np.frombuffer(Array(c.c_double, [0] * MAX_PATH_LEN, lock=False))
-        self.__path_ys = np.frombuffer(Array(c.c_double, [1] * MAX_PATH_LEN, lock=False))
+        self.__path_xs = np.ascontiguousarray(np.frombuffer(Array(c.c_double, [0] * MAX_PATH_LEN, lock=False)))
+        self.__path_ys = np.ascontiguousarray(np.frombuffer(Array(c.c_double, [1] * MAX_PATH_LEN, lock=False)))
         
         # self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
         # np.frombuffer(mp_arr.get_obj())
