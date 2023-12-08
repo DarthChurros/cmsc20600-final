@@ -62,10 +62,14 @@ def gaussian_scalars(stdev, n):
 
 
 def init_pose(pose: Pose, x, y, yaw):
-    # pose.position = Point()
+    '''
+    Initializes given pose to given x, y, and yaw.
+    '''
+    
     pose.position.x = x
     pose.position.y = y
     pose.position.z = 0
+    
     # Need to convert yaw to quaternion
     quat = quaternion_from_euler(0,0, yaw)
     pose.orientation.x = quat[0]
@@ -89,11 +93,24 @@ class Particle:
 
 
 def rvizify_array(array):
+    '''
+    Apply tranasformation on given 2D array s.t. it appears on matplotlib pyplot
+    with the same orientation and coordinates as it appears on rviz.
+    
+    (x, y) -> (-y, x)
+    '''
+    
+    
     arr_copy = np.copy(array)
     arr_copy = np.flip(arr_copy, axis=1)
     return arr_copy
     
 def rvizify_indices(x, y, arr_shape):
+    '''
+    Apply transformation on given coordinate(s) x, y s.t. they appear on matplotlib pyplot
+    with the same orientation and coordinates as it/they appear on rviz.
+    '''
+    
     return -y + arr_shape[1], x
 
     
@@ -113,13 +130,23 @@ def demo_visualize_closestMap(map):
 class PointPicker:
 
     def __init__(self):
+        # array of possible destinations
         self.arr = [(2479, 1503), (1998, 1992), (2085,1522), (2505,1517), (2009, 1839), (2206, 1730), (2010,1673), (2500,1660)]
+        
+        # the current destination
         self.index = np.random.randint(0,len(self.arr))
 
     def pick_point(self):
+        '''
+        Pick new destination
+        '''
+        
         new = np.random.randint(0,len(self.arr))
         while new == self.index:
+            # resample until point is distinct from the previous destination
             new = np.random.randint(0,len(self.arr))
+        
+        # set new destination index and return
         self.index = new
         return self.arr[new]
 
@@ -151,7 +178,7 @@ class ParticleFilter:
         
         self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
         
-        
+        # 
         self.init_destination_and_motion()   
 
         if (enable_closestMap_viz_demo):
@@ -268,9 +295,25 @@ class ParticleFilter:
 
 
     def init_destination_and_motion(self):
-        self.pathFinder = PathFinding(self.closestMap, destination=self.point_picker.pick_point() ,algorithm="dijkstra",outOfBounds=0.2) 
+        '''
+        Destination:
+        Initialize new pathFinder object set at new destination and compute the 
+        corresponding shortest distances.
+        
+        Motion:
+        Initialize new Motion object with current motion mode, (new) pathFinder, and map.
+        '''
+        
+        # initialize pathfinder
+        self.pathFinder = PathFinding(self.closestMap,
+                                      destination=self.point_picker.pick_point(),
+                                      algorithm="dijkstra",
+                                      outOfBounds=0.2) 
+        # compute shortest dists to new destination
         self.pathFinder.compute_path_finding()
-        self.motion = Motion(self.motion_mode, self.pathFinder,self.map)
+        
+        # initialize motion
+        self.motion = Motion(self.motion_mode, self.pathFinder, self.map)
 
 
     def get_map(self, data):
@@ -323,18 +366,31 @@ class ParticleFilter:
         '''
         while (not self.map_set):
             # wait until the map is set, you idiot
-            print("JERE")
             time.sleep(0.1)
         
+        # extract occupancy grid and dims
         occup_arr = np.array(self.map.data)
         w = self.map.info.width
         h = self.map.info.height
+        
+        # transform occupancy grid so that its indices correspond with rviz coordinates
         occup_arr = occup_arr.reshape(w, -h).T
+        
+        # compute in-bound boolean mask
         ib = (occup_arr <= 10) & (occup_arr != -1)
+        
+        # extract and set in-bound indices
         self.ib_indices = np.array(np.where(ib))
+        
+        # number of in-bound indices
         self.num_ib_indices = self.ib_indices.shape[1]
             
     def scatter_particle_cloud(self):
+        '''
+        Scatters/randomizes particle cloud uniformly across the maze.
+        '''
+        
+        
         # extract map info
         w = self.map.info.width
         h = self.map.info.height
@@ -346,12 +402,11 @@ class ParticleFilter:
         assert (w != 0)
         assert (h != 0)
         
-        rng = np.random.default_rng()
-        
         # generate random particles
         self.find_yaws[:] = np.random.uniform(low=0, high=2 * np.pi, size=self.find_num_particles)
         self.find_weights[:] = np.ones(shape=self.find_num_particles)
         
+        # uniformly sample points from in-bound indices
         coords = self.ib_indices[:, np.random.randint(low=0, high=self.num_ib_indices, size=self.find_num_particles)]
         xs = coords[0]
         ys = coords[1]
@@ -375,8 +430,15 @@ class ParticleFilter:
         
         assert (self.map_set) # should be set during or before self.init_ib_indices
             
+        # randomize the particle cloud
         self.scatter_particle_cloud()
         
+        '''
+        Set normal internal states arrays with the front of the "find" state arrays
+        
+        Since only normal internal states are published to rviz, this means we only see
+        a small fraction of the "find" state arrays.
+        '''
         self.poses[0, :] = self.find_poses[0, :self.num_particles]
         self.poses[1, :] = self.find_poses[1, :self.num_particles]
         self.yaws[:] = self.find_yaws[:self.num_particles] 
