@@ -24,14 +24,18 @@ class SharedInterface():
         self.first_pf_cycle = Value('i', True, lock=False) # do first pf cycle regardless of whether the bot moves
         
         self.robot_estimate_cv = Condition()
-        self.__robot_estimate = Array('d', [0] * 3, lock=False) # update using helper
+        self.__robot_estimate = np.frombuffer(Array('d', [0] * 3, lock=False)) # update using helper
         self.robot_estimate_initialized = Value('i', False, lock=False)
         self.robot_estimate_updated = Value('i', False, lock=False)
         
         self.path_cv = Condition()
         self.path_initialized = Value('i', False, lock=False)
-        self.__path_xs = Array(c.c_double, [0] * MAX_PATH_LEN, lock=False)
-        self.__path_ys = Array(c.c_double, [1] * MAX_PATH_LEN, lock=False)
+        self.__path_xs = np.frombuffer(Array(c.c_double, [0] * MAX_PATH_LEN, lock=False))
+        self.__path_ys = np.frombuffer(Array(c.c_double, [1] * MAX_PATH_LEN, lock=False))
+        
+        # self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
+        # np.frombuffer(mp_arr.get_obj())
+        self.closestMap = np.frombuffer(Array(c.c_double, [0] * MAX_PATH_LEN, lock=False))
         
         '''
         (Aside)
@@ -55,8 +59,9 @@ class SharedInterface():
         return np.copy([self.__path_xs, self.__path_ys])
     def read_path_shallow(self):
         # https://stackoverflow.com/questions/9754034/can-i-create-a-shared-multiarray-or-lists-of-lists-object-in-python-for-multipro
-        '''Creates a deep copy of the shared path array'''
-        return np.frombuffer(self.__path_xs)
+        '''Creates a shallow copy of the shared path array'''
+        # return np.frombuffer(self.__path_xs)
+        return [self.__path_xs, self.__path_ys]
         
     def writ_path(self, src: ArrayLike):
         '''
