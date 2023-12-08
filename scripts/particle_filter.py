@@ -31,7 +31,7 @@ import os
 import copy
 
 from motion import Motion
-
+from shm import SharedInterface
 from path_finder import PathFinding
 
 # demo toggles
@@ -152,7 +152,7 @@ class PointPicker:
 
 
 class ParticleFilter:
-    def __init__(self):
+    def __init__(self, shm: SharedInterface):
 
         # once everything is setup initialized will be set to true
         self.initialized = False        
@@ -233,9 +233,9 @@ class ParticleFilter:
         self.find_poses = np.zeros(shape=(2, self.find_num_particles)) # x, y of poses only
         self.find_yaws = np.zeros(shape=self.find_num_particles) # yaws only
         self.find_weights = np.ones(shape=self.find_num_particles)
-        self.finding = True
-        self.finding_lock = threading.Lock()
-        self.first_pf_cycle = True # do first pf cycle regardless of whether the bot moves
+        self.finding = shm.finding
+        self.finding_lock = shm.finding_lock
+        self.first_pf_cycle = shm.first_pf_cycle # do first pf cycle regardless of whether the bot moves
 
 
         # set threshold values for linear and angular movement before we preform an update

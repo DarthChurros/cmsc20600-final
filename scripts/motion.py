@@ -9,6 +9,8 @@ from std_msgs.msg import Header
 import scipy
 from scipy.interpolate import splprep, splev
 
+from shm import SharedInterface
+
 def to_rviz_coords(self, ind_x, ind_y):
     '''
     Convert given closestMap array indices to rviz coordinates
