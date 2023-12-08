@@ -48,7 +48,11 @@ determine the shortest safe route to its destination. To do this, we implemented
 Dijkstra's algorithm on the maze's coordinate grid to find the shortest path
 from any location to the destination. By excluding points close to the walls of
 the maze, we could somewhat account for the size of the robot and eliminate
-paths likely to cause collisions.
+paths likely to cause collisions. When choosing what node is next we also choose to 
+secondary sort by the distance from the wall given by the likelyhood field. The combining
+this corners being considered the same distance from the wall the robot sticks to the
+middle of the path when moving. This makes the robot almost never collide with
+walls.
 
 Though A* would somewhat optimize this process by only searching part of the
 maze, we computed all optimal paths for three reasons: ease of implementation,
