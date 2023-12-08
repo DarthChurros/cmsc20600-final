@@ -298,11 +298,8 @@ class Motion:
         pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y)) 
         print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
 
-        tempx = int((curr_pose.position.x - self.pos_x)/self.map_res)
-        tempy = int((curr_pose.position.y - self.pos_y)/self.map_res)
-
-
-        self.pathFinder.update_pose((tempx,tempy))
+        # update pathFinder with current pose (in closestMap indices)
+        self.pathFinder.update_pose((indc_x,indc_y))
             
         # scale lin_error by polynomial to prioritize turn corrections
         lin_error = (abs(ang_error) / np.pi - 1) ** 10
