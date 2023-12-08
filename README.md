@@ -153,8 +153,8 @@ tell it to announce "catastrophic failure" whenever it succeeded.
 
 1. In a terminal window, run `roslaunch astar_project visualize_particles.launch`.
 This executes `roscore`, so you don't need to do that separately.
-2. In a second window, run `python likelihood_field.py`. This may take up to two
-minutes, but it only needs to be done once per machine.
+2. In a second window, run `rosrun astar_project likelihood_field.py`. This may
+take up to two minutes, but it only needs to be done once per machine.
 3. Once this has executed, run `rosrun astar_project particle_filter.py`.
 4. The demo should run. It chooses a location in the maze and navigates to it,
 then repeats, alternating between gradient and parametric navigation for each
