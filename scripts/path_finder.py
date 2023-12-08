@@ -2,7 +2,14 @@ import numpy as np
 import math
 
 def lineseg_dists(p, a, b):
-    # https://stackoverflow.com/questions/54442057/calculate-the-euclidian-distance-between-an-array-of-points-to-a-line-segment-in
+    '''
+    Computes the shortest euclidean distance between a point 'p' and a line segment
+    defined by endpoints 'a' and 'b'.
+    
+    Source:
+    https://stackoverflow.com/questions/54442057/calculate-the-euclidian-distance-between-an-array-of-points-to-a-line-segment-in
+    '''
+    
     
     # Handle case where p is a single point, i.e. 1d array.
     p = np.atleast_2d(p)
@@ -49,9 +56,18 @@ class PathFinding:
         self.path = None
 
     def reduce_path(self, epsilon):
+        '''
+        Reduce self.path under Douglas-Peuker with a maximum tolerance of epsilon.
+        i.e. if a point exceeds more than epsilon from surrounding line segment,
+        it must be kept. Otherwise, delete the point.
+        '''
+        
         assert (epsilon > 0)
         
         def lp(epsilon, path, idxs):
+            ''' The internal helper that performs the main recursive logic of Douglas-Peuker. '''
+            
+            
             # assumes that self.path is a 2D numpy array [[x1, y1], [x2, y2], ...]
             path_len = len(path)
             assert(path_len >= 2)

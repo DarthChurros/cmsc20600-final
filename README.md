@@ -1,4 +1,6 @@
 [![Open in Visual Studio Code](https://classroom.github.com/assets/open-in-vscode-718a45dd9cf7e7f842a935f5ebbe5719a5e09af4491e668f4dbf3b35d5cca122.svg)](https://classroom.github.com/online_ide?assignment_repo_id=12356467&assignment_repo_type=AssignmentRepo)
+
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/B5BZBIlFFdI/0.jpg)](https://www.youtube.com/watch?v=B5BZBIlFFdI)
 # A* Maze Navigation
 
 **Names:** Maxwell Krolak, Tejas Narayan, Justin Shin
