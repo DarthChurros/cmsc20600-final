@@ -139,6 +139,8 @@ tell it to announce "catastrophic failure" whenever it succeeded.
 
 ## ROS Node Diagram
 
+![Node diagram for maze navigator](assets/node_diagram.jpg)
+
 ## Execution
 
 1. In a terminal window, run
@@ -168,6 +170,9 @@ interface—unfortunately weren't feasible in the timeframe we had, since the
 first two wouldn't work without a high degree of reliability in maze navigation
 while the last two were simply lower priority. Given more time, though, we would
 try to tackle these goals to smooth out and extend the work we've already done.
+We would also have liked to refactor our work so that the particle filter and
+movement controller ran in separate nodes; as of right now, they don't, though
+the logic is handled in separate python files.
 
 ## Takeaways
 
