@@ -185,6 +185,8 @@ does exactly the thing you need.
 
 !["I have a function for that"](https://media.giphy.com/media/Qx5BmbWmAQGeU0b0LV/giphy.gif)
 
+!["How did we get here"](https://github.com/DarthChurros/cmsc20600-final/raw/main/robotfinal.mp4)
+
 - Moving parts introduce uncertainty. Motors are inherently unpredictable. If
 you need something precise from one, then check its work frequently.
 - Git branches are a useful way to ensure that one feature can be developed and
