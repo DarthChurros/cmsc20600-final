@@ -37,30 +37,34 @@ if __name__=="__main__":
     brr_thread = Process(target=start_brr, args=(shm,))
     brr_thread.start()
     
-    print("move", shm.finding)
+    print("move", shm.finding.value)
     
     import time
-    time.sleep(5)
+    time.sleep(1)
     with shm.finding_lock:
-        print("the finding", shm.finding)
-    # exit(0)
+        print(">> 2: mov rcv finding")
+        print("mov: finding = ", shm.finding)
+        print("<< 2: mov rcv finding")
     
     
-    
-    print("waiting on finding_lock...")
     with shm.finding_lock:
-        print("Aacq lock")
-        
-        print("A received: ", shm.read_path())
-        shm.writ_path(np.array([[69] * 500, [13] * 500]))
+        print(">> 3: mov set path")
+        arr = np.array([np.arange(500), [0] *500])
+        shm.writ_path(arr)
+        print("<< 3: mov set path")
     
-    print("Arel lock")
     
     with shm.robot_estimate_cv:
-        shm.writ_robot_estimate(1,2,3)
-        shm.robot_estimate_initialized.value = True
-        print("set true")
-        shm.robot_estimate_cv.notify()
+        while not shm.robot_estimate_initialized:
+            shm.robot_estimate_cv.wait()
+        
+        print(">> 6: mov rcv robot_estimate")
+        print("mov: robot_estimate =", shm.read_robot_estimate())
+        print("<< 6: mov rcv robot_estimate")
+    exit(0)
+    
+    
+    
         
 
     

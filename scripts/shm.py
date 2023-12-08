@@ -13,7 +13,7 @@ class SharedInterface():
         Notes: 
         - value attributes must be...
             -> read as: new_var = shared_val.value 
-                     OR new_var = shared_val
+                     OR new_var = shared_val <DO NOT DO THIS; THIS IS MUTABLE MEMORY>
             -> writ as: shared_val.value = new_value
         - private (denoted with "__" prefix) attributes should be get/set
         with their corresponding methods

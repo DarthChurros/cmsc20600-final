@@ -3,6 +3,7 @@ import rospy
 import threading
 from shm import SharedInterface
 import numpy as np
+import time
 # from move import SharedInterface
 
 # Signalling and Locking
@@ -19,55 +20,28 @@ class Brr:
         self.shm = shm
         global yar
     def run(self):
-        print("Hi from brr")
-        from move import SharedInterface
-        
-        import time
         with self.shm.finding_lock:
-            print("yos")
+            print(">> 1: brr set finding")
             self.shm.finding.value = 25
+            self.shm.finding.value = False
+            print("<< 1: brr set finding")
         
+        time.sleep(2)
         
         with self.shm.finding_lock:
-            print("0acq lock")
-        
-            # finding = bool(self.shm.finding)
-            # print("first", finding)
-            # finding = False
-            # print("second", finding)
+            print(">> 4: brr rcv path")
+            print("brr: path = ", self.shm.read_path())
+            print("<< 4: brr rcv path")
             
-
-            arr = np.array([np.arange(500), [0] *500])
-            self.shm.writ_path(arr)
-        print("0rel lock")
-        
-        time.sleep(5)
-        
-        with self.shm.finding_lock:
-            print("1acq lock")
-            print("1 received: ", self.shm.read_path())
-        
-        print("1rel lock")
+            
+        time.sleep(2)
         
         with self.shm.robot_estimate_cv:
-            while not self.shm.robot_estimate_initialized:
-                print("not init... waiting...")
-                self.shm.robot_estimate_cv.wait()
-                print("try wake")
-                
-            print("woke up!")
-            
-            print(self.shm.read_robot_estimate())
-            
-            
-        
-            
-            
-        
-        
-        # self.shm.finding=False
-        # time.sleep(4)
-        # print("four", self.shm.finding)
+            print(">> 5: brr set robot_estimate")
+            self.shm.writ_robot_estimate(1, 2, 3)
+            self.shm.robot_estimate_initialized.value = True
+            self.shm.robot_estimate_cv.notify()
+            print("<< 5: brr set robot_estimate")
         
 
 
