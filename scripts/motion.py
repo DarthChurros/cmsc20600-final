@@ -141,6 +141,13 @@ class Motion:
         curr_yaw = get_yaw_from_pose(curr_pose)
 
         indc_x, indc_y = to_closestMap_indices(self, curr_x, curr_y)
+<<<<<<< HEAD
+        if self.pathFinder.closestMap[indc_x][indc_y] < self.path_finder.bound - 0.02:
+            self.move_naive() 
+            self.curve_poses = np.array([Pose() for i in range(int(1/0.0001))]) 
+            remove
+=======
+>>>>>>> 90e75aec1b702ba2b223d43263fcd683e1ffc8f5
         
         from scipy.interpolate import splprep, splev
         if (not self.path_set):
