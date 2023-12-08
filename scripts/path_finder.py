@@ -30,7 +30,7 @@ def lineseg_dists(p, a, b):
 
 class PathFinding:
     
-    def __init__(self, map, start, destination, algorithm="dijkstra", outOfBounds=0.2, bound=40):
+    def __init__(self, map, destination, algorithm="dijkstra", outOfBounds=0.2, bound=40):
         self.algorithm = algorithm
         self.closestMap = map
         boundMap = np.zeros(shape=self.closestMap.shape)
@@ -39,19 +39,10 @@ class PathFinding:
         boundMap = boundMap + 1
         self.map = boundMap
         self.shortest_dists = None
-        self.current_pose = start
+        self.current_pose = None
         self.destination = destination
         self.bound = bound
         
-        # print(self.shortest_dists)
-        # self.costs = np.ones_like(self.closestMap)
-        # self.costs = 0.5*(0.22/self.closestMap - 1)
-        # self.costs[self.costs < 0] = 0
-        # self.costs[self.costs > 1] = 1
-        # self.costs = 100*self.costs
-        # self.costs[:] = 0
-        # print(self.costs[self.costs != 0])
-        # exit(0)
         
         self.path = None
 
@@ -151,12 +142,25 @@ class PathFinding:
                 return self.find_nearest_non_negative(node)
             else:
                 for i in range(len(adjacent)):
-                    if ((self.shortest_dists[adjacent[min][0]][adjacent[min][1]] == -1) or 
-                    ((self.shortest_dists[adjacent[i][0]][adjacent[i][1]] != -1) and
-                    ((self.shortest_dists[adjacent[i][0]][adjacent[i][1]] == self.shortest_dists[adjacent[min][0]][adjacent[min][1]] and
-                    self.closestMap[adjacent[i][0]][adjacent[i][1]] > self.closestMap[adjacent[min][0]][adjacent[min][1]]) or 
-                        (self.shortest_dists[adjacent[i][0]][adjacent[i][1]] < self.shortest_dists[adjacent[min][0]][adjacent[min][1]])))):
+                    minx = adjacent[min][0]
+                    miny = adjacent[min][1]
+                    
+                    curx = adjacent[i][0]
+                    cury = adjacent[i][1]
+                    
+                    if (self.shortest_dists[minx][miny] == -1):
                         min = i
+                        continue
+                    
+                    node_valid = self.shortest_dists[curx][cury] != -1
+                    path_len_equal = self.shortest_dists[curx][cury] == self.shortest_dists[minx][miny]
+                    farther_from_wall = self.closestMap[curx][cury] > self.closestMap[minx][miny]
+                    closer_to_dest = self.shortest_dists[curx][cury] < self.shortest_dists[minx][miny]
+                    
+                    
+                    if (node_valid and ((path_len_equal and farther_from_wall) or closer_to_dest)):
+                        min = i
+                        
                 return adjacent[min]
         elif self.algorithm == "a_star":
             return None
@@ -233,10 +237,6 @@ class PathFinding:
         unchecked = self.get_adjacent(self.destination)
         self.shortest_dists = np.zeros(shape=self.map.shape) - 1
         self.shortest_dists[self.destination[0], self.destination[1]] = 0
-        # import matplotlib.pyplot as plt
-        # plt.imshow(self.costs, cmap='hot', interpolation='nearest', origin="lower")
-        # plt.show()
-        # exit(0)
         
         
         for i in unchecked:
@@ -250,7 +250,6 @@ class PathFinding:
                         # distance update without diagonals
                         self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + 1
                         # distance update with diagonals
-                        # self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + np.hypot(i[0]-j[0],i[1]-j[1]) + self.costs[i[0]][i[1]]
                         #self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + np.hypot(i[0]-j[0],i[1]-j[1])
                 checked.append(i)
             unchecked = tempUnchecked

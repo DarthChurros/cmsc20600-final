@@ -62,10 +62,14 @@ def gaussian_scalars(stdev, n):
 
 
 def init_pose(pose: Pose, x, y, yaw):
-    # pose.position = Point()
+    '''
+    Initializes given pose to given x, y, and yaw.
+    '''
+    
     pose.position.x = x
     pose.position.y = y
     pose.position.z = 0
+    
     # Need to convert yaw to quaternion
     quat = quaternion_from_euler(0,0, yaw)
     pose.orientation.x = quat[0]
@@ -89,35 +93,35 @@ class Particle:
 
 
 def rvizify_array(array):
+    '''
+    Apply tranasformation on given 2D array s.t. it appears on matplotlib pyplot
+    with the same orientation and coordinates as it appears on rviz.
+    
+    (x, y) -> (-y, x)
+    '''
+    
+    
     arr_copy = np.copy(array)
     arr_copy = np.flip(arr_copy, axis=1)
     return arr_copy
     
 def rvizify_indices(x, y, arr_shape):
+    '''
+    Apply transformation on given coordinate(s) x, y s.t. they appear on matplotlib pyplot
+    with the same orientation and coordinates as it/they appear on rviz.
+    '''
+    
     return -y + arr_shape[1], x
 
     
-
-def visualize_curve(self):    
-    ts = np.arange(0, 100, 0.1)
-    particle_cloud_pose_array = PoseArray()
-    particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
-    for t in ts:
-        curr_pose = Pose()
-        
-        init_pose(curr_pose, x_lam(t), y_lam(t), np.arctan2(yp_lam(t), xp_lam(t)))
-        particle_cloud_pose_array.poses.append(curr_pose)
-    self.particles_pub.publish(particle_cloud_pose_array)    
-    
-
 def demo_visualize_closestMap(map):
     '''
     Demo: plots the closestMap (or whatever you want) as a heat map in matplotlib and exits.
     '''
     import matplotlib.pyplot as plt
 
-    #rvizified_closestMap = rvizify_array(map)
-    plt.imshow(map, cmap='hot', interpolation='nearest', origin="lower")
+    rvizified_closestMap = rvizify_array(map)
+    plt.imshow(rvizified_closestMap, cmap='hot', interpolation='nearest', origin="lower")
         
     plt.show()
     exit(0)
@@ -126,37 +130,33 @@ def demo_visualize_closestMap(map):
 class PointPicker:
 
     def __init__(self):
+        # array of possible destinations
         self.arr = [(2479, 1503), (1998, 1992), (2085,1522), (2505,1517), (2009, 1839), (2206, 1730), (2010,1673), (2500,1660)]
+        
+        # the current destination
         self.index = np.random.randint(0,len(self.arr))
 
     def pick_point(self):
+        '''
+        Pick new destination
+        '''
+        
         new = np.random.randint(0,len(self.arr))
         while new == self.index:
+            # resample until point is distinct from the previous destination
             new = np.random.randint(0,len(self.arr))
+        
+        # set new destination index and return
         self.index = new
         return self.arr[new]
 
 
 class ParticleFilter:
-
-    def publish_pose_at(self, x, y):
-        particle_cloud_pose_array = PoseArray()
-        particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id=self.map_topic)
-        particle_cloud_pose_array.poses 
-        
-        newpose = Pose()
-        particle_cloud_pose_array.poses = [newpose]
-        
-        init_pose(newpose, x, y, 0)
-        self.particles_pub.publish(particle_cloud_pose_array)
-
-
     def __init__(self):
 
         # once everything is setup initialized will be set to true
         self.initialized = False        
 
-        print("JERE")
         # initialize this particle filter node
         rospy.init_node('turtlebot3_particle_filter')
 
@@ -176,17 +176,12 @@ class ParticleFilter:
 
         self.point_picker = PointPicker()
         
-        # closestMap for maze_map
-        # self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
-        # closestMap for new1
         self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
         
-        
+        # 
         self.init_destination_and_motion()   
-        # our addition:
 
         if (enable_closestMap_viz_demo):
-            j = 0
             for i in self.point_picker.arr:
                 print(self.pathFinder.shortest_dists[i[0]][i[1]], " ", i)
             demo_visualize_closestMap(self.pathFinder.shortest_dists)
@@ -279,64 +274,9 @@ class ParticleFilter:
         self.robot_estimate_updated = False
         self.robot_estimate_cv = threading.Condition()
 
-        while not self.map_set:
-            print("JERE")
-            time.sleep(0.1)
+        assert (self.map_set)
         
         self.motion = Motion(self.motion_mode, self.pathFinder,self.map)
-
-        '''
-        >>>>
-        !!!! DO NOT DELETE !!!!
-        curve visualization aid section. '''
-        # 
-        # import matplotlib.pyplot as plt
-        # closestMap = self.closestMap
-        
-        # cutoff = 0.01
-        # closestMap[closestMap >= cutoff] = 1
-        # rvizified_closestMap = rvizify_array(closestMap)
-        # plt.imshow(rvizified_closestMap, cmap='hot', interpolation='nearest', origin="lower")
-        
-        from scipy.interpolate import splprep, splev
-
-    
-        # # plt.imshow(rvizify_array(self.pathFinder.map), cmap='hot', interpolation='nearest', origin="lower")
-        
-        # arr_shape = rvizified_closestMap.shape
-        # pathxs, pathys = self.to_rviz_coords(self.pathFinder.path[:, 0], self.pathFinder.path[:, 1])
-        # tck, u = splprep([pathxs, pathys], k=1, s=0)
-        # tck3, u = splprep([pathxs, pathys], k=3, s=0.005)
-        # tck3, u = splprep([pathxs, pathys], k=3, s=0.01)
-        
-        
-        
-        # ts = np.arange(0, 1, 0.0001)
-        # xs, ys = splev(ts, tck)
-        # xs, ys = self.to_closestMap_indices(xs, ys)
-        # xs, ys = rvizify_indices(xs, ys, arr_shape)
-        # plt.plot(xs, ys, "b-")
-        
-        # ts = np.arange(0, 1, 0.0001)
-        # x3s, y3s = splev(ts, tck3)
-        # x3s, y3s = self.to_closestMap_indices(x3s, y3s)
-        # x3s, y3s = rvizify_indices(x3s, y3s, arr_shape)
-        # plt.plot(x3s, y3s, "g-")
-        
-        # xstart, ystart = rvizify_indices(2498, 1522, arr_shape)
-        # xdest, ydest = rvizify_indices(1998, 1992, arr_shape)
-        # plt.plot(xstart, ystart, "go")
-        # plt.plot(xdest, ydest, "go")
-        
-        # patxs, patys = rvizify_indices(self.pathFinder.path[:, 0], self.pathFinder.path[:, 1], arr_shape)
-        # plt.scatter(patxs, patys, c='pink')
-        # plt.show()    
-        # # exit(0)
-        
-        '''
-        !!!! DO NOT DELETE !!!!
-        <<<<'''
-        
 
 
         # the motion handler
@@ -355,12 +295,25 @@ class ParticleFilter:
 
 
     def init_destination_and_motion(self):
-        self.pathFinder = PathFinding(self.closestMap, start=(2479, 1503), destination=self.point_picker.pick_point() ,algorithm="dijkstra",outOfBounds=0.2) 
+        '''
+        Destination:
+        Initialize new pathFinder object set at new destination and compute the 
+        corresponding shortest distances.
+        
+        Motion:
+        Initialize new Motion object with current motion mode, (new) pathFinder, and map.
+        '''
+        
+        # initialize pathfinder
+        self.pathFinder = PathFinding(self.closestMap,
+                                      destination=self.point_picker.pick_point(),
+                                      algorithm="dijkstra",
+                                      outOfBounds=0.2) 
+        # compute shortest dists to new destination
         self.pathFinder.compute_path_finding()
-        self.pathFinder.compute_path()
-        #self.pathFinder.reduce_path(1)
-
-        self.motion = Motion(self.motion_mode, self.pathFinder,self.map)
+        
+        # initialize motion
+        self.motion = Motion(self.motion_mode, self.pathFinder, self.map)
 
 
     def get_map(self, data):
@@ -413,18 +366,31 @@ class ParticleFilter:
         '''
         while (not self.map_set):
             # wait until the map is set, you idiot
-            print("JERE")
             time.sleep(0.1)
         
+        # extract occupancy grid and dims
         occup_arr = np.array(self.map.data)
         w = self.map.info.width
         h = self.map.info.height
+        
+        # transform occupancy grid so that its indices correspond with rviz coordinates
         occup_arr = occup_arr.reshape(w, -h).T
+        
+        # compute in-bound boolean mask
         ib = (occup_arr <= 10) & (occup_arr != -1)
+        
+        # extract and set in-bound indices
         self.ib_indices = np.array(np.where(ib))
+        
+        # number of in-bound indices
         self.num_ib_indices = self.ib_indices.shape[1]
             
     def scatter_particle_cloud(self):
+        '''
+        Scatters/randomizes particle cloud uniformly across the maze.
+        '''
+        
+        
         # extract map info
         w = self.map.info.width
         h = self.map.info.height
@@ -436,12 +402,11 @@ class ParticleFilter:
         assert (w != 0)
         assert (h != 0)
         
-        rng = np.random.default_rng()
-        
         # generate random particles
         self.find_yaws[:] = np.random.uniform(low=0, high=2 * np.pi, size=self.find_num_particles)
         self.find_weights[:] = np.ones(shape=self.find_num_particles)
         
+        # uniformly sample points from in-bound indices
         coords = self.ib_indices[:, np.random.randint(low=0, high=self.num_ib_indices, size=self.find_num_particles)]
         xs = coords[0]
         ys = coords[1]
@@ -465,8 +430,15 @@ class ParticleFilter:
         
         assert (self.map_set) # should be set during or before self.init_ib_indices
             
+        # randomize the particle cloud
         self.scatter_particle_cloud()
         
+        '''
+        Set normal internal states arrays with the front of the "find" state arrays
+        
+        Since only normal internal states are published to rviz, this means we only see
+        a small fraction of the "find" state arrays.
+        '''
         self.poses[0, :] = self.find_poses[0, :self.num_particles]
         self.poses[1, :] = self.find_poses[1, :self.num_particles]
         self.yaws[:] = self.find_yaws[:self.num_particles] 
@@ -768,6 +740,10 @@ class ParticleFilter:
                     self.finding = False
 
 
+                start = time.time()
+                if not self.move_halt:
+                    self.motion.move(self.robot_estimate)
+                print("move:", time.time()-start)         
 
 
                 if self.pathFinder.at_destination():
@@ -785,11 +761,7 @@ class ParticleFilter:
                     else:
                         rospy.signal_shutdown("got bored")            
                     self.move_halt = False
-                start = time.time()
 
-                if not self.move_halt:
-                    self.motion.move(self.robot_estimate)
-                print("move:", time.time()-start)         
 
                 self.odom_pose_last_motion_update = self.odom_pose
                 self.first_init = False
@@ -816,17 +788,6 @@ class ParticleFilter:
             self.robot_estimate_cv.notify_all()
         return
     
-    def to_closestMap_indices(self, x, y):
-        map_res = self.map.info.resolution
-        pos_x = self.map.info.origin.position.x
-        pos_y = self.map.info.origin.position.y
-        
-        ind_x = int(((x - pos_x)/map_res))
-        ind_y = int(((y - pos_y)/map_res))
-        # ind_x = ((x - pos_x)/map_res).astype(np.int64)
-        # ind_y = ((y - pos_y)/map_res).astype(np.int64)
-        return ind_x, ind_y
-
     def to_rviz_coords(self, ind_x, ind_y):
         map_res = self.map.info.resolution
         pos_x = self.map.info.origin.position.x
@@ -835,6 +796,16 @@ class ParticleFilter:
         x = (ind_x * map_res) + pos_x
         y = (ind_y * map_res) + pos_y
         return x, y
+    
+    def to_closestMap_indices(self, x, y):
+        map_res = self.map.info.resolution
+        pos_x = self.map.info.origin.position.x
+        pos_y = self.map.info.origin.position.y
+        
+        ind_x = int(((x - pos_x)/map_res))
+        ind_y = int(((y - pos_y)/map_res))
+        return ind_x, ind_y
+
         
 
 
@@ -1014,9 +985,6 @@ class ParticleFilter:
             self.robot_estimate_cv.notify_all()
     
 
-def wrapto_pi(angle):
-    return (angle + np.pi) % (2 * np.pi) - np.pi
-    # https://stackoverflow.com/questions/15927755/opposite-of-numpy-unwrap
 
 if __name__=="__main__":
     
