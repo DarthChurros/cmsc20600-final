@@ -2,6 +2,7 @@ from multiprocessing import Array, Lock, Value, Condition
 
 import numpy as np
 from numpy.typing import ArrayLike
+import ctypes as c
 
 # Configs
 MAX_PATH_LEN = 500
@@ -29,8 +30,8 @@ class SharedInterface():
         
         self.path_cv = Condition()
         self.path_initialized = Value('i', False, lock=False)
-        self.__path_xs = Array('d', [0] * MAX_PATH_LEN, lock=False)
-        self.__path_ys = Array('d', [1] * MAX_PATH_LEN, lock=False)
+        self.__path_xs = Array(c.c_double, [0] * MAX_PATH_LEN, lock=False)
+        self.__path_ys = Array(c.c_double, [1] * MAX_PATH_LEN, lock=False)
         
         '''
         (Aside)
@@ -52,6 +53,10 @@ class SharedInterface():
     def read_path(self):
         '''Creates a deep copy of the shared path array'''
         return np.copy([self.__path_xs, self.__path_ys])
+    def read_path_shallow(self):
+        # https://stackoverflow.com/questions/9754034/can-i-create-a-shared-multiarray-or-lists-of-lists-object-in-python-for-multipro
+        '''Creates a deep copy of the shared path array'''
+        return np.frombuffer(self.__path_xs)
         
     def writ_path(self, src: ArrayLike):
         '''
