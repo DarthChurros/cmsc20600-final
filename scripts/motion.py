@@ -1,9 +1,7 @@
 import rospy
 from geometry_msgs.msg import Twist, Vector3
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
-import time
 import numpy as np
-import sympy as s
 
 from geometry_msgs.msg import Pose, PoseStamped, PoseArray
 from std_msgs.msg import Header
@@ -12,11 +10,19 @@ import scipy
 from scipy.interpolate import splprep, splev
 
 def to_rviz_coords(self, ind_x, ind_y):
+    '''
+    Convert given closestMap array indices to rviz coordinates
+    '''
+    
     x = (ind_x * self.map_res) + self.pos_x
     y = (ind_y * self.map_res) + self.pos_y
     return x, y
 
 def to_closestMap_indices(self, x, y):
+    '''
+    Convert given rviz coordinates to closestMap array indices
+    '''
+    
     ind_x = int(((x - self.pos_x)/self.map_res))
     ind_y = int(((y - self.pos_y)/self.map_res))
     return ind_x, ind_y
@@ -68,11 +74,14 @@ def wrapto_pi(angle):
 
 
 
-# enable naive debug to see the next node and next_yaw
-enable_naive_debug = True
+# enable debug to see the current target pose
+enable_debug = True
 
 def init_pose(pose: Pose, x, y, yaw):
-    # pose.position = Point()
+    '''
+    Initializes given pose to given x, y, and yaw.
+    '''
+    
     pose.position.x = x
     pose.position.y = y
     pose.position.z = 0
@@ -88,12 +97,20 @@ def init_pose(pose: Pose, x, y, yaw):
 
 class Motion:
     def publish_pose(self, pose: Pose):
+        '''
+        Publish given pose to rviz (visualized as long red arrow).
+        '''
+        
         pose_stamped = PoseStamped()
         pose_stamped.pose = pose
         pose_stamped.header = Header(stamp=rospy.Time.now(), frame_id="map")
         self.robot_estimate_pub.publish(pose_stamped)
         
     def publish_curve(self):
+        '''
+        Publish curve_poses (the current robot path) to rviz. This is only invoked
+        by the parametric motion approach; naive does not do path following.
+        '''
     
         particle_cloud_pose_array = PoseArray()
         particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id="map")
@@ -107,25 +124,44 @@ class Motion:
         self.map_res = closestMap.info.resolution
         self.pos_x = closestMap.info.origin.position.x
         self.pos_y = closestMap.info.origin.position.y
+        
+        # start movement publisher
         self.pub_cmd_vel = rospy.Publisher("/cmd_vel",Twist,queue_size=10)
+        
+        # start particle cloud publisher
         self.particles_pub = rospy.Publisher("particle_cloud", PoseArray, queue_size=10)
 
 
-        if enable_naive_debug:
+        if enable_debug:
+            '''
+            If debug is enabled (i.e. want to visualize "next" node that robot is
+            targetting), we need to start estimated_robot_pose publisher.
+            '''
+            
             self.robot_estimate_pub = rospy.Publisher("estimated_robot_pose", PoseStamped, queue_size=10)
         
         if approach == "naive":
+            # naive approach
             self.move = self.move_naive
             self.curve_poses = []
             
             return
             
         if approach == "parametric":
+            # parametric approach
+            
             self.move = self.move_parametric
             self.path_set = False
-            self.tck = None
+            # parametric function describing the path
+            self.tck = None 
+            # the value of parameter 't' that best describes current robot position
             self.curr_t = 0
-            self.curve_poses = np.array([Pose() for i in range(int(1/0.0001))]) 
+            
+            # number of visualization points to sample from path
+            num_ts = 10000 
+            
+            # declare curve_posess array
+            self.curve_poses = np.array([Pose() for i in range(10000)]) 
             return
             
     
@@ -136,13 +172,15 @@ class Motion:
         
     
     def move_parametric(self, curr_pose):
+        # extract current robot pose
         curr_x = curr_pose.position.x
         curr_y = curr_pose.position.y
         curr_yaw = get_yaw_from_pose(curr_pose)
+        
+        # convert position to 
 
         indc_x, indc_y = to_closestMap_indices(self, curr_x, curr_y)
         
-        from scipy.interpolate import splprep, splev
         if (not self.path_set):
             self.pathFinder.update_pose((indc_x, indc_y))
             
@@ -205,7 +243,7 @@ class Motion:
         curve_vel = np.array([curve_x, curve_y])
         total_vel = (corr_vel + curve_vel).astype(float)
         
-        if enable_naive_debug:
+        if enable_debug:
             next_pose = Pose()
             init_pose(next_pose, clos_x, clos_y, np.arctan2(total_vel[1], total_vel[0]))
             # self.publish_pose(next_pose)
