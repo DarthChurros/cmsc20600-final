@@ -158,10 +158,10 @@ class Motion:
             self.curr_t = 0
             
             # number of visualization points to sample from path
-            num_ts = 10000 
+            self.num_ts = 10000 
             
             # declare curve_posess array
-            self.curve_poses = np.array([Pose() for i in range(10000)]) 
+            self.curve_poses = np.array([Pose() for i in range(self.num_ts)]) 
             return
             
     
@@ -177,55 +177,91 @@ class Motion:
         curr_y = curr_pose.position.y
         curr_yaw = get_yaw_from_pose(curr_pose)
         
-        # convert position to 
-
+        # convert curr_pose to closestMap indices
         indc_x, indc_y = to_closestMap_indices(self, curr_x, curr_y)
         
         if (not self.path_set):
+            # path has not been set yet
+
+            # update current_pose in pathFinder
             self.pathFinder.update_pose((indc_x, indc_y))
             
+            # compute path from current_pose to destination
             self.pathFinder.compute_path()
+            # simplify path
             self.pathFinder.reduce_path(1)
             
+            # transform pathFinder.path from closestMap indices to rviz coordinates
             pathxs = self.pathFinder.path[:, 0] * self.map_res + self.pos_x
             pathys = self.pathFinder.path[:, 1] * self.map_res + self.pos_y
             
+            # find best-fit cubic b-spline parametric function for path
             tck, u = splprep([pathxs, pathys], k=3,s=0.006)
+            # ...and set it as our parametric function
             self.tck = tck
             
-            def init_curve():    
-                ts = np.arange(0, 1, 0.0001)
-                x3s, y3s = splev(ts, tck)
+            def init_curve():
+                '''initialize curve_poses with particles from path'''
                 
-                print(x3s)
-                xp3s, yp3s = splev(ts, tck, der=1)
+                    
+                # prepare array of parameter values
+                ts = np.arange(0, 1, 1/self.num_ts)
+                # compute path coordinates from parameter values
+                xs, ys = splev(ts, tck)
+                
+                # compute path derivatives from parameter values
+                xds, yds = splev(ts, tck, der=1)
+                
+                # declare pcloud array
                 particle_cloud_pose_array = PoseArray()
                 particle_cloud_pose_array.header = Header(stamp=rospy.Time.now(), frame_id="map")
                 
                 for i in range(0, len(ts), 100):
+                    # write every 100th particle to curve_poses
+                    
                     curr_pose = self.curve_poses[i]
 
-                    init_pose(curr_pose, x3s[i], y3s[i], np.arctan2(yp3s[i], xp3s[i]))
+                    init_pose(curr_pose, xs[i], ys[i], np.arctan2(yds[i], xds[i]))
             
             init_curve()
+            
+            # path set
             self.path_set = True
+            
+
         self.publish_curve()
         
         
-        def distance_to_curve(point, tck):
+        def find_min_dist_t(point, tck):
+            '''
+            Find parameter 't' whose position on the given parametric curve 'tck'
+            is minimized with given point 'point'.
+            '''
+            
             x, y = point
             
-            def objective(t):
+            def euclid_dist(t):
+                '''
+                Computes euclidean distance between 1) point and 2) curve at t.
+                '''
+                
+                # evaluate parametric curve at t
                 curve_point = splev(t, self.tck)
+                
+                # compute distance
                 dist = np.sqrt((x - curve_point[0])**2 + (y - curve_point[1])**2)
                 return dist
 
-            result = scipy.optimize.minimize_scalar(objective, bounds=(self.curr_t+0.001, self.curr_t + 0.01), method="bounded")
+            # find distance-minimizing t and return
+            result = scipy.optimize.minimize_scalar(euclid_dist, bounds=(self.curr_t+0.001, self.curr_t + 0.01), method="bounded")
             return result.x
 
-            
+        
         tck = self.tck
-        t = distance_to_curve((curr_x, curr_y), tck)
+        # find parameter value 't' that best approximates robot's current position along curve
+        t = find_min_dist_t((curr_x, curr_y), tck)
+        
+        # ...and set that as our current parameter value
         self.curr_t = t
         
         closest_point_on_curve = splev(t, tck)
@@ -236,21 +272,30 @@ class Motion:
         curve_x = derivative_of_closest_point[0]
         curve_y = derivative_of_closest_point[1]
         
-        
+        # scaling factor to normalize for path length 
+        # (this is necessary because the parameter is always 0 to 1; regardless of pathlength)
         k = len(self.pathFinder.path) / 924
-        corr_weight = 30
+        
+        # correction vector and weight
+        corr_weight = 30 # quite high -> prioritize correction!
         corr_vel = np.array([clos_x - curr_x, clos_y - curr_y]) * corr_weight
+        
+        # curve-following vector
         curve_vel = np.array([curve_x, curve_y])
+        
+        # vector sum -> this is the robot's target vector
         total_vel = (corr_vel + curve_vel).astype(float)
         
         if enable_debug:
+            # debug enabled; publish target curve pose to rviz
             next_pose = Pose()
             init_pose(next_pose, clos_x, clos_y, np.arctan2(total_vel[1], total_vel[0]))
             # self.publish_pose(next_pose)
 
         target_yaw = np.arctan2(total_vel[1], total_vel[0])
-        ang_error = wrapto_pi(target_yaw - curr_yaw)
-        pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y))
+        ang_error = wrapto_pi(target_yaw - curr_yaw) # modulo wrap to [-π, π] range
+        # distance to closest point on curve
+        pos_error = np.hypot(float(clos_x - curr_x), float(clos_y - curr_y)) 
         print(f"pos_error (m): {pos_error}, ang_error (rad): {ang_error}")
 
         tempx = int((curr_pose.position.x - self.pos_x)/self.map_res)
@@ -259,8 +304,10 @@ class Motion:
 
         self.pathFinder.update_pose((tempx,tempy))
             
+        # scale lin_error by polynomial to prioritize turn corrections
         lin_error = (abs(ang_error) / np.pi - 1) ** 10
         
+        # publish move
         self.pub_cmd_vel.publish(Twist(linear=Vector3(0.3*absolute_cutoff(lin_error, 1),0,0),angular=Vector3(0,0,2*ang_error)))
         
 
