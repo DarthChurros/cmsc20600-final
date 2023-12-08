@@ -434,10 +434,13 @@ class ParticleFilter:
         self.scatter_particle_cloud()
         
         '''
-        Set normal internal states arrays with the front of the "find" state arrays
+        Set normal internal states arrays with the front values of the "find" state arrays
         
-        Since only normal internal states are published to rviz, this means we only see
-        a small fraction of the "find" state arrays.
+        We do this because we have to display SOMETHING to rviz after particle filter
+        initialization. After all, only normal internal state arrays are published to rviz.
+        However, because the find_buffers are customarily much larger than the normal state
+        buffers, this means we only ever see a small fraction of the "find" state arrays 
+        displayed at any time.
         '''
         self.poses[0, :] = self.find_poses[0, :self.num_particles]
         self.poses[1, :] = self.find_poses[1, :self.num_particles]
@@ -473,9 +476,11 @@ class ParticleFilter:
         WARNING: only updates internal state array, NOT particle_cloud
         '''
         if self.finding:
+            # finding behavior; switch to larger find buffers
             weights = self.find_weights
             num_particles = self.find_num_particles
         else:
+            # tracking behavior; switch to smaller normal buffers
             weights = self.weights
             num_particles = self.num_particles
         
@@ -561,10 +566,25 @@ class ParticleFilter:
         
     
     def reinitialize(self):
+        '''
+        Helper to force particle filter to recalibrate, i.e. enable
+        "finding" behavior, scatter the particle cloud, and perform one
+        large scan cycle.
+        
+        '''
+        
+        
         with self.finding_lock:
+            # acquire lock protecting self.finding from r/w
+            
+            # set finding behavior; this is functionally equivalent to restarting 
+            # the robot, so first_pf_cycle = True
             self.finding = True
             self.first_pf_cycle = True
             with self.robot_estimate_cv:
+                # acquire lock/cv protecting self.robot_estimate_set from r/w
+                
+                # null current robot_estimate
                 self.robot_estimate_set = False
                 self.robot_estimate_updated = False
 
@@ -580,11 +600,13 @@ class ParticleFilter:
         from collections import Counter
         
         if self.finding:
+            # finding behavior; switch to larger find buffers
             num_particles = self.find_num_particles
             poses = self.find_poses
             yaws = self.find_yaws
             weights = self.find_weights
         else:
+            # tracking behavior; switch to smaller normal buffers
             num_particles = self.num_particles
             poses = self.poses
             yaws = self.yaws
@@ -697,8 +719,10 @@ class ParticleFilter:
                     
                     prevT = time.time()
                     if self.finding:                
+                        # finding behavior; randomize particles for recalibration                
                         self.scatter_particle_cloud()
                     else:
+                        # tracking behavior; update particles by latest motion increment
                         self.update_particles_with_motion_model()
                     currT = time.time()
                     print("motion", currT - prevT)
@@ -742,21 +766,37 @@ class ParticleFilter:
 
                 start = time.time()
                 if not self.move_halt:
+                    # perform move, given latest pose estimate
                     self.motion.move(self.robot_estimate)
+                
                 print("move:", time.time()-start)         
 
 
                 if self.pathFinder.at_destination():
+                    # robot has arrived at its destination
+                    
+                    # halt
                     self.motion.halt()
                     rospy.sleep(2)
+                    
+                    # Necessary Behavior
                     self.sound_pub.publish(Sound(0))    
+                    
+                    # set to move halt
                     self.move_halt = True
                     
                     if self.infinite_mode:
+                        # in infinite_mode, we flip-flop between the two approaches 
+                        # every pathfinding cycle
+                        
                         if self.motion_mode == "naive":
+                            # naive -> parametric
                             self.motion_mode = "parametric"
                         else: 
+                            # parametric -> naive
                             self.motion_mode = "naive"  
+                            
+                        # reinitialize pathfinder and motion model
                         self.init_destination_and_motion()
                     else:
                         rospy.signal_shutdown("got bored")            
@@ -778,17 +818,24 @@ class ParticleFilter:
         
         # Update current robot pose to computed averages
         pose = self.robot_estimate
-        print("curr indices:", self.to_closestMap_indices(pose.position.x, pose.position.y))
-        # pose.position = Point()
         with self.robot_estimate_cv:
+            # acquire cv protecting r/w to robot_estimate
+            
             init_pose(pose, av_x, av_y, av_yaw)
             
             self.robot_estimate_set = True
             self.robot_estimate_updated = True
+            
+            # wake any threads waiting on updates to robot_esetimate
             self.robot_estimate_cv.notify_all()
         return
     
     def to_rviz_coords(self, ind_x, ind_y):
+        '''
+        Convert given closestMap array indices to rviz coordinates
+        '''
+        
+        # extract map info
         map_res = self.map.info.resolution
         pos_x = self.map.info.origin.position.x
         pos_y = self.map.info.origin.position.y
@@ -798,6 +845,11 @@ class ParticleFilter:
         return x, y
     
     def to_closestMap_indices(self, x, y):
+        '''
+        Convert given rviz coordinates to closestMap array indices
+        '''
+        
+        # extract map info
         map_res = self.map.info.resolution
         pos_x = self.map.info.origin.position.x
         pos_y = self.map.info.origin.position.y
@@ -875,11 +927,13 @@ class ParticleFilter:
         oob_penalty = 20
         
         if self.finding:
+            # finding behavior; switch to larger find buffers
             num_particles = self.find_num_particles
             yaws = self.find_yaws
             poses = self.find_poses
             weights = self.find_weights
         else:
+            # tracking behavior; switch to smaller normal buffers
             num_particles = self.num_particles
             yaws = self.yaws
             poses = self.poses
@@ -978,15 +1032,24 @@ class ParticleFilter:
 
 
     def halt(self):
+        '''
+        Robot halt callback.
+        '''
+        
         self.motion.halt()
         with self.robot_estimate_cv:
             self.robot_estimate_set = True
             self.robot_estimate_updated = True
+            
+            # wake any threads waiting on updates to robot_estimate to let them die
             self.robot_estimate_cv.notify_all()
     
 
 
 if __name__=="__main__":
+    '''
+    Declare and run one maze-pathfinding robot instance.
+    '''
     
 
     pf = ParticleFilter()
