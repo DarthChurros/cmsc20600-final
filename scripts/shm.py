@@ -33,9 +33,14 @@ class SharedInterface():
         self.__path_xs = np.ascontiguousarray(np.frombuffer(Array(c.c_double, [0] * MAX_PATH_LEN, lock=False)))
         self.__path_ys = np.ascontiguousarray(np.frombuffer(Array(c.c_double, [1] * MAX_PATH_LEN, lock=False)))
         
-        # self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
-        # np.frombuffer(mp_arr.get_obj())
-        self.closestMap = np.frombuffer(Array(c.c_double, [0] * MAX_PATH_LEN, lock=False))
+        
+        closestMap = np.load("computeMap.npy")
+        map_width = closestMap.shape[0]
+        map_height = closestMap.shape[1]
+        self.closestMap = np.frombuffer(Array(c.c_double, [0] * map_width * map_height, lock=False))
+        self.closestMap = np.ascontiguousarray(self.closestMap.reshape(closestMap.shape))
+        self.closestMap[:] = closestMap
+        assert(np.array_equal(self.closestMap, closestMap))
         
         '''
         (Aside)

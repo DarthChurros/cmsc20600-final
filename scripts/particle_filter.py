@@ -176,7 +176,7 @@ class ParticleFilter:
 
         self.point_picker = PointPicker()
         
-        self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
+        self.closestMap = shm.closestMap
         
         # initialize pathfinder and motion objects
         self.init_destination_and_motion()   
