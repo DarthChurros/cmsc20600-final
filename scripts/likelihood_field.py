@@ -62,7 +62,7 @@ class LikelihoodField(object):
                 self.closest_occ[i, j] = distances[curr][0] * self.map.info.resolution
                 curr += 1
         self.occupied = occupied
-        print("Hello")
+        # print("Hello")
         np.save("computeMap", self.closest_occ)
         # np.save("new1Map",self.closest_occ)
 
