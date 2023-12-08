@@ -37,6 +37,8 @@ def lineseg_dists(p, a, b):
 
 class PathFinding:
     
+
+    #Initialize nodes
     def __init__(self, map, destination, algorithm="dijkstra", outOfBounds=0.2, bound=40):
         self.algorithm = algorithm
         self.closestMap = map
@@ -104,11 +106,13 @@ class PathFinding:
     def update_pose(self, pose):
         self.current_pose = pose
 
+    #Naive path finder simplifies the path directly infront of the robot as to not precomute simplified path.
     def naive_path_finder(self, epsilon):
         next_node = self.get_next_node()
         nodes = []
         distances = []
         
+        #Path simplification by finding a line between points and checking if all the points between are within episilon distance from the line.
         while(all(distances)):
             nodes.append(next_node)
             distances.append(True)
@@ -125,8 +129,12 @@ class PathFinding:
                     d = lambda x : math.hypot(nodes[i][0]-x,nodes[i][1] - (slope * x) - offset)
                     z = (nodes[i][0] + (slope * (nodes[i][1] - offset)))/(1 + pow(slope,2))
                     distances[i] = d(z) < epsilon
+
+        #Node that is decided to be next is normalized and returned.
         return self.get_translation_vector(nodes[-1]), nodes[-1]
 
+
+    #Finds the nearest non negative node by a breadth first search
     def find_nearest_non_negative(self, node=None):
         if node is None:
             node = self.current_pose
@@ -134,6 +142,7 @@ class PathFinding:
         checked = [node]
         unchecked = self.get_adjacent(node)
         
+        #Breadth first search
         while len(unchecked) != 0:
             tempUnchecked = []
             for i in unchecked:
@@ -147,16 +156,19 @@ class PathFinding:
         return (0,0)
         
 
+    #Finds the next node to progress towards the destination
     def get_next_node(self, node=None):
         if node is None:
             node = self.current_pose
     
+        #If the algorithm is dijkstra run this
         if self.algorithm == "dijkstra":
             adjacent = self.get_adjacent(node)
             min = 0
             if(self.shortest_dists[node[0]][node[1]] == -1):
                 return self.find_nearest_non_negative(node)
             else:
+                #Find the adjacent vector thats closest to destination and furthest from wall
                 for i in range(len(adjacent)):
                     minx = adjacent[min][0]
                     miny = adjacent[min][1]
@@ -173,7 +185,7 @@ class PathFinding:
                     farther_from_wall = self.closestMap[curx][cury] > self.closestMap[minx][miny]
                     closer_to_dest = self.shortest_dists[curx][cury] < self.shortest_dists[minx][miny]
                     
-                    
+                    #If the node is valid then sort by distance to destination and if they tie then winner is the one who is further from a wall
                     if (node_valid and ((path_len_equal and farther_from_wall) or closer_to_dest)):
                         min = i
                         
@@ -185,7 +197,7 @@ class PathFinding:
 
     
 
-    #returns the vector that coresponds to the direction the robot should move in world coordinates.
+    #Returns the vector that coresponds to the direction the robot should move in world coordinates.
     def get_translation_vector(self, node=None):
         next_node = node
         if node is None:
@@ -201,6 +213,7 @@ class PathFinding:
             hy = math.hypot(translation[0],translation[1])
             return (translation[0]/hy,translation[1]/hy)
     
+    #Returns the adjacent vectors that are in bounds.
     def get_adjacent(self, node):
         # borders without diagonals
         # borders = [(-1,0),(0,1),(1,0),(0,-1)]
@@ -212,7 +225,7 @@ class PathFinding:
                 adjacent_nodes.append((node[0] + i[0],node[1] + i[1]))
         return adjacent_nodes
 
-
+    #Decides which algorithm to compute.
     def compute_path_finding(self):
         if self.algorithm == "dijkstra":
             self.compute_dijkstra()
@@ -221,11 +234,13 @@ class PathFinding:
         else:
             return
 
+    #Returns the full path from the shortest distance map
     def get_path(self):
         if self.path is None:
             self.compute_path()    
         return self.path
     
+    #Computes the map from the shortest distance map
     def compute_path(self):
         temp_path = []
         current_pose = self.current_pose
@@ -238,6 +253,7 @@ class PathFinding:
         self.path = np.array(temp_path)
         self.dist = len(self.path)
 
+    #Computes A* by computing dijkstra and then computing the path
     def compute_astar(self):
         self.compute_dijkstra()
         path = self.get_path()
@@ -247,6 +263,8 @@ class PathFinding:
             p = path[i]
             self.shortest_dists[p[0]][p[1]] = i
 
+
+    #Computes dijkstra the standard way
     def compute_dijkstra(self):
         self.algorithm = "dijkstra"
         checked = [self.destination]
@@ -254,7 +272,7 @@ class PathFinding:
         self.shortest_dists = np.zeros(shape=self.map.shape) - 1
         self.shortest_dists[self.destination[0], self.destination[1]] = 0
         
-        
+        #Does breadth first search and computes distance as +1 for each node away. Corners are computed to be the same distance on purpose
         for i in unchecked:
              self.shortest_dists[i[0]][i[1]] = 1
         while len(unchecked) != 0:
@@ -269,7 +287,7 @@ class PathFinding:
                         #self.shortest_dists[j[0]][j[1]] = self.shortest_dists[i[0]][i[1]] + np.hypot(i[0]-j[0],i[1]-j[1])
                 checked.append(i)
             unchecked = tempUnchecked
-        # assert(False)
     
+    #Checks if the robot is within the boundry
     def at_destination(self):
         return self.shortest_dists[self.current_pose[0]][self.current_pose[1]] < self.bound and self.shortest_dists[self.current_pose[0]][self.current_pose[1]] != -1
