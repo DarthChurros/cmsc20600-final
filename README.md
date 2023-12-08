@@ -151,10 +151,11 @@ tell it to announce "catastrophic failure" whenever it succeeded.
 
 ## Execution
 
-1. In a terminal window, run
+1. In a terminal window, run `python likelihood_field.py`.
+2. Once this has executed, run
 `roslaunch astar_project visualize_particles.launch`.
-2. In a second window, run `rosrun astar_project particle_filter.py`.
-3. The demo should run. It chooses a location in the maze and navigates to it,
+3. In a second window, run `rosrun astar_project particle_filter.py`.
+4. The demo should run. It chooses a location in the maze and navigates to it,
 then repeats, alternating between gradient and parametric navigation for each
 new destination.
 
