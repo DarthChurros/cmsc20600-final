@@ -233,6 +233,7 @@ class ParticleFilter:
         self.find_poses = np.zeros(shape=(2, self.find_num_particles)) # x, y of poses only
         self.find_yaws = np.zeros(shape=self.find_num_particles) # yaws only
         self.find_weights = np.ones(shape=self.find_num_particles)
+        self.shm = shm
         self.finding = shm.finding
         self.finding_lock = shm.finding_lock
         self.first_pf_cycle = shm.first_pf_cycle # do first pf cycle regardless of whether the bot moves
@@ -270,9 +271,9 @@ class ParticleFilter:
         self.init_ib_indices()
 
         self.robot_estimate = Pose()
-        self.robot_estimate_set = False
-        self.robot_estimate_updated = False
-        self.robot_estimate_cv = threading.Condition()
+        self.robot_estimate_set = shm.robot_estimate_initialized
+        self.robot_estimate_updated = shm.robot_estimate_updated
+        self.robot_estimate_cv = shm.robot_estimate_cv
 
         assert (self.map_set)
         
@@ -585,8 +586,8 @@ class ParticleFilter:
                 # acquire lock/cv protecting self.robot_estimate_set from r/w
                 
                 # null current robot_estimate
-                self.robot_estimate_set = False
-                self.robot_estimate_updated = False
+                self.robot_estimate_set.value = False
+                self.robot_estimate_updated.value = False
 
 
 
@@ -818,13 +819,14 @@ class ParticleFilter:
         
         # Update current robot pose to computed averages
         pose = self.robot_estimate
+        init_pose(pose, av_x, av_y, av_yaw)
         with self.robot_estimate_cv:
             # acquire cv protecting r/w to robot_estimate
             
-            init_pose(pose, av_x, av_y, av_yaw)
             
-            self.robot_estimate_set = True
-            self.robot_estimate_updated = True
+            self.shm.writ_robot_estimate(av_x, av_y, av_yaw)
+            self.robot_estimate_set.value = True
+            self.robot_estimate_updated.value = True
             
             # wake any threads waiting on updates to robot_esetimate
             self.robot_estimate_cv.notify_all()
@@ -1038,8 +1040,8 @@ class ParticleFilter:
         
         self.motion.halt()
         with self.robot_estimate_cv:
-            self.robot_estimate_set = True
-            self.robot_estimate_updated = True
+            self.robot_estimate_set.value = True
+            self.robot_estimate_updated.value = True
             
             # wake any threads waiting on updates to robot_estimate to let them die
             self.robot_estimate_cv.notify_all()
