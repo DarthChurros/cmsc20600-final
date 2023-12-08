@@ -19,6 +19,9 @@ class Brr:
         self.ff = True
         self.shm = shm
         global yar
+        
+        self.run()
+
     def run(self):
         with self.shm.finding_lock:
             print(">> 1: brr set finding")
