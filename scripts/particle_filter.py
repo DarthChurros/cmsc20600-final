@@ -167,8 +167,8 @@ class ParticleFilter:
         self.scan_topic = "scan"
 
         self.motion_mode = "naive"
-        self.infinite_mode = True
-        self.move_halt = False
+        self.infinite_mode = True # if True, robot endlessly picks and travels to new destinations in the maze
+        self.move_halt = False # if True, robot should halt
 
         # inialize our map
         self.map = OccupancyGrid()
@@ -178,7 +178,7 @@ class ParticleFilter:
         
         self.closestMap = np.ascontiguousarray(np.load("computeMap.npy"))
         
-        # 
+        # initialize pathfinder and motion objects
         self.init_destination_and_motion()   
 
         if (enable_closestMap_viz_demo):
@@ -796,7 +796,7 @@ class ParticleFilter:
                             # parametric -> naive
                             self.motion_mode = "naive"  
                             
-                        # reinitialize pathfinder and motion model
+                        # reinitialize pathfinder and motion objects
                         self.init_destination_and_motion()
                     else:
                         rospy.signal_shutdown("got bored")            
