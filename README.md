@@ -185,7 +185,7 @@ does exactly the thing you need.
 
 !["I have a function for that"](https://media.giphy.com/media/Qx5BmbWmAQGeU0b0LV/giphy.gif)
 
-!["How did we get here"](https://github.com/DarthChurros/cmsc20600-final/raw/main/robotfinal.mp4)
+!["How did we get here"](https://drive.google.com/file/d/1iWEjX-ei_Z8ivLyEvFUhNXrQVsR-0wD3/view?usp=share_link)
 
 - Moving parts introduce uncertainty. Motors are inherently unpredictable. If
 you need something precise from one, then check its work frequently.
